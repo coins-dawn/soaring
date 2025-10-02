@@ -20,3 +20,9 @@ download:
 .PHONY: otp
 otp:
 	java -Xmx3G -jar soaring/otp/otp-1.5.0-shaded.jar --build ./work/otp/input --inMemory
+
+# 到達圏探索を行いgeojsonを生成
+.PHONY: area-search
+area-search:
+	cp static/otp/area_search/toyama.json work/otp/input/toyama.json
+	python soaring/otp/area_search.py work/otp/input/toyama.json work/otp/output/

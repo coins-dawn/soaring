@@ -21,8 +21,9 @@ target_columns = [
     "８０〜８４歳人口総数",
     "８５〜８９歳人口総数",
     "９０〜９４歳人口総数",
-    "９５歳以上人口総数"
+    "９５歳以上人口総数",
 ]
+
 
 def main():
     with open("tblT001175Q5740.txt", encoding="shift-jis") as f:
@@ -37,10 +38,11 @@ def main():
             for col_index, col in enumerate(row):
                 if col_index < 43:
                     continue
-                if (col_index-43)%3 == 0 and col_index != 67:
+                if (col_index - 43) % 3 == 0 and col_index != 67:
                     count = int(col) if col != "*" else 0
                     mesh_sum += count
             print(mesh_key, mesh_sum, sep=",")
+
 
 if __name__ == "__main__":
     main()
