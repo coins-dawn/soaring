@@ -14,9 +14,9 @@ convert-gtfs:
 
 .PHONY: download
 download:
-	./soaring/download_toyama_data.sh work/otp/input/
+	./soaring/otp/download_toyama_data.sh work/otp/input/
 
 # 0.0.0.0:8080でotpサーバを起動
 .PHONY: otp
 otp:
-	java -Xmx3G -jar soaring/otp-1.5.0-shaded.jar --build ./work/otp/input --inMemory
+	java -Xmx3G -jar soaring/otp/otp-1.5.0-shaded.jar --build ./work/otp/input --inMemory
