@@ -38,8 +38,8 @@ def exec_single_spot(spot: dict, output_dir_path: str):
     ]
     for time_limit in time_limit_set_list:
         geometry = exec_area_search(lat, lon, time_limit)
-        # {id}_{time_limit}.geojsonという名前でoutput_dir_pathに出力
-        output_path = f"{output_dir_path}/{id}_{time_limit}.geojson"
+        time_limit_minute = time_limit // 60
+        output_path = f"{output_dir_path}/{id}_{time_limit_minute}.geojson"
         with open(output_path, "w") as f:
             json.dump(geometry, f, ensure_ascii=False, indent=2)
 
