@@ -1,5 +1,5 @@
 {
-    "hospitals": [
+    "hospital": [
         {
             "id": "hos1",
             "name": "富山市立富山市民病院",
@@ -13,7 +13,7 @@
             "lon": 137.17481195887558
         }
     ],
-    "shoppings": [
+    "shopping": [
         {
             "id": "sho1",
             "name": "フューチャーシティ　ファボーレ",
@@ -33,7 +33,7 @@
             "lon": 137.23575470083216
         }
     ],
-    "public-facilities": [
+    "public-facilitie": [
         {
             "id": "pub1",
             "name": "富山市役所",
