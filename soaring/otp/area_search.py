@@ -2,6 +2,8 @@ import sys
 import json
 import requests
 
+MAX_WALK_DISTANCE_M = 1000 # 徒歩の最大距離[m]
+
 
 def exec_area_search(lat: float, lon: float, time_limit: int):
     host = "http://localhost:8080"
@@ -11,7 +13,7 @@ def exec_area_search(lat: float, lon: float, time_limit: int):
         "mode": "WALK,TRANSIT",
         "date": "10-01-2025",
         "time": "10:00am",
-        "maxWalkDistance": "200",
+        "maxWalkDistance": f"{MAX_WALK_DISTANCE_M}",
         "cutoffSec": f"{time_limit}"
     }
 
