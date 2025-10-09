@@ -24,5 +24,13 @@ otp:
 # 到達圏探索を行いgeojsonを生成
 .PHONY: area-search
 area-search:
+	# バス停
+	python soaring/otp/select_bus_stop.py work/otp/output/combus_stops.json
+	python soaring/otp/area_search.py work/otp/output/combus_stops.json work/otp/output/geojson/
+	# spot
 	cp static/otp/area_search/toyama_spot_list.json work/otp/input/toyama_spot_list.json
-	python soaring/otp/area_search.py work/otp/input/toyama_spot_list.json work/otp/output/
+	python soaring/otp/area_search.py work/otp/input/toyama_spot_list.json work/otp/output/geojson/
+	
+.PHONY: car-search
+car-search:
+	python soaring/otp/car_search.py work/otp/output/combus_stops.json work/otp/output/
