@@ -30,7 +30,13 @@ area-search:
 	# spot
 	cp static/otp/area_search/toyama_spot_list.json work/otp/input/toyama_spot_list.json
 	python soaring/otp/area_search.py work/otp/input/toyama_spot_list.json work/otp/output/geojson/
-	
+
+# 車経路探索を行いコミュニティバスの経路を計算
 .PHONY: car-search
 car-search:
 	python soaring/otp/car_search.py work/otp/output/combus_stops.json work/otp/output/
+
+# 公共交通探索を行いスポット->バス停の経路を計算
+.PHONY: ptrans-search
+ptrans-search:
+	python soaring/otp/ptrans_search.py work/otp/input/toyama_spot_list.json work/otp/output/combus_stops.json work/otp/output/
