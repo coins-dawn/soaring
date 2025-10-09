@@ -31,3 +31,6 @@ area-search:
 	cp static/otp/area_search/toyama_spot_list.json work/otp/input/toyama_spot_list.json
 	python soaring/otp/area_search.py work/otp/input/toyama_spot_list.json work/otp/output/geojson/
 	
+.PHONY: car-search
+car-search:
+	python soaring/otp/car_search.py work/otp/output/combus_stops.json work/otp/output/

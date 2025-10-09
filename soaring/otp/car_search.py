@@ -12,12 +12,12 @@ def load_stops(json_path):
     return data.get("combus-stops", [])
 
 def get_travel_time(from_stop, to_stop):
-    """2つのバス停間の所要時間を取得"""
+    """2つのバス停間の所要時間と距離を取得"""
     base_url = "http://localhost:8080/otp/routers/default/plan"
     
     # バス停データの検証
     if not all(key in from_stop and key in to_stop for key in ['lat', 'lon']):
-        return None
+        return None, None
 
     params = {
         "fromPlace": f"{from_stop['lat']},{from_stop['lon']}",
@@ -34,14 +34,19 @@ def get_travel_time(from_stop, to_stop):
         response.raise_for_status()
         data = response.json()
         
-        # 経路が見つかった場合、所要時間（分）を返す
+        # 経路が見つかった場合、所要時間（分）と距離（メートル）を返す
         if "plan" in data and data["plan"]["itineraries"]:
-            return data["plan"]["itineraries"][0]["duration"] / 60
-        return None
+            itinerary = data["plan"]["itineraries"][0]
+            leg = itinerary["legs"][0]
+            duration_m = leg["duration"] / 60  # 秒から分に変換
+            distance_km = leg["distance"] / 1000  # メートルからキロメートルに変換
+            geometry = leg["legGeometry"]["points"]
+            return duration_m, distance_km, geometry
+        return None, None, None
     
     except Exception as e:
         print(f"Error calculating travel time: {e}")
-        return None
+        return None, None, None
 
 def main():
     if len(sys.argv) != 3:
@@ -57,42 +62,38 @@ def main():
     print(f"Loaded {len(stops)} stops")
 
     # 結果を格納するリスト
-    results = []
+    routes = []
     
     # すべての組み合わせに対して所要時間を計算
     total_pairs = len(stops) * (len(stops) - 1)
     current_pair = 0
 
-    count = 0
-
     for from_stop in stops:
         for to_stop in stops:
             if from_stop == to_stop:
                 continue
-        
-            count += 1
-            if count > 30:
-                break
                 
             current_pair += 1
             print(f"Processing pair {current_pair}/{total_pairs}...")
 
-            # 所要時間を計算
-            duration = get_travel_time(from_stop, to_stop)
+            # 所要時間と距離を計算
+            duration_m, distance_km, geometry = get_travel_time(from_stop, to_stop)
             
             # 結果を追加
-            results.append({
-                'stop_from': from_stop.get('id', 'unknown'),
-                'stop_to': to_stop.get('id', 'unknown'),
-                'average_travel_time': round(duration, 2) if duration is not None else ''
-            })
+            if duration_m is not None and distance_km is not None and geometry is not None:
+                routes.append({
+                    'from': from_stop.get('id', 'unknown'),
+                    'to': to_stop.get('id', 'unknown'),
+                    'distance_km': round(distance_km, 2),
+                    'duration_m': round(duration_m, 2),
+                    "geometry": geometry
+                })
 
-    # 結果をCSVファイルに出力
-    output_path = os.path.join(output_dir, 'car_travel_times.csv')
-    with open(output_path, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=['stop_from', 'stop_to', 'average_travel_time'])
-        writer.writeheader()
-        writer.writerows(results)
+    # 結果をJSONファイルに出力
+    output = {'combus-routes': routes}
+    output_path = os.path.join(output_dir, 'combus_routes.json')
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(output, f, ensure_ascii=False, indent=4)
 
     print(f"Results written to {output_path}")
 
