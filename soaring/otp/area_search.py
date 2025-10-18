@@ -1,11 +1,20 @@
 import sys
 import json
 import requests
+import pickle
 
-MAX_WALK_DISTANCE_M = 1000 # 徒歩の最大距離[m]
+MAX_WALK_DISTANCE_M = 1000  # 徒歩の最大距離[m]
 
+def exec_single_spot(spot: dict, output_dir_path: str):
+    id = spot["id"]
+    name = spot["name"]
+    lat = spot["lat"]
+    lon = spot["lon"]
 
-def exec_area_search(lat: float, lon: float, time_limit: int):
+    initial_time_limit = 10 * 60  # 10分
+    trial_num = 111 # 10分 -> 120分まで1分刻み
+
+    # リクエストの構築
     host = "http://localhost:8080"
     path = "/otp/routers/default/isochrone"
     params = {
@@ -14,38 +23,40 @@ def exec_area_search(lat: float, lon: float, time_limit: int):
         "date": "10-01-2025",
         "time": "10:00am",
         "maxWalkDistance": f"{MAX_WALK_DISTANCE_M}",
-        "cutoffSec": f"{time_limit}"
     }
-
     url = f"{host}{path}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
+    time_limits = [initial_time_limit + i * 60 for i in range(trial_num)]
+    for time_limit in time_limits:
+        url += f"&cutoffSec={time_limit}"
+
+    # OpenTripPlannerに問い合わせ
     response = requests.get(url)
     assert response
     assert response.status_code == 200
+
+    # 結果をgeojsonとして保存
     response_json = response.json()
-    assert len(response_json["features"]) == 1
+    assert len(response_json["features"]) == trial_num
+    result_dict = {}
+    for i in range(trial_num):
+        feature = response_json["features"][i]
+        geometry = feature["geometry"]
+        assert geometry["type"] == "MultiPolygon"
+        time = int(feature["properties"]["time"])
+        result_dict[time] = geometry
 
-    geometry = response_json["features"][0]["geometry"]
-    return geometry
+    prev_geometry = None
+    for time_limit in time_limits:
+        geometry = result_dict[time_limit]
+        if prev_geometry != None and geometry == prev_geometry:
+            continue
+        time_limit_min = time_limit // 60
+        output_path = f"{output_dir_path}/{id}_{time_limit_min}.bin"
+        with open(output_path, "wb") as f:
+            pickle.dump(geometry, f)
+        prev_geometry = geometry
 
 
-def exec_single_spot(spot: dict, output_dir_path: str):
-    id = spot["id"]
-    name = spot["name"]
-    lat = spot["lat"]
-    lon = spot["lon"]
-    
-    # 10分から2時間まで10分刻み（秒）
-    time_limit_set_list = [
-        i * 60 for i in range(10, 121, 10)
-    ]
-    for time_limit in time_limit_set_list:
-        geometry = exec_area_search(lat, lon, time_limit)
-        time_limit_minute = time_limit // 60
-        output_path = f"{output_dir_path}/{id}_{time_limit_minute}.geojson"
-        with open(output_path, "w") as f:
-            json.dump(geometry, f, ensure_ascii=False, indent=2)
-
-    
 def exec_single_category(category_name: str, spot_list: list, output_dir_path: str):
     for spot in spot_list:
         exec_single_spot(spot, output_dir_path)
