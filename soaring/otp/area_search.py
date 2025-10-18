@@ -1,6 +1,7 @@
 import sys
 import json
 import requests
+import pickle
 
 MAX_WALK_DISTANCE_M = 1000  # 徒歩の最大距離[m]
 
@@ -40,6 +41,7 @@ def exec_single_spot(spot: dict, output_dir_path: str):
     for i in range(trial_num):
         feature = response_json["features"][i]
         geometry = feature["geometry"]
+        assert geometry["type"] == "MultiPolygon"
         time = int(feature["properties"]["time"])
         result_dict[time] = geometry
 
@@ -49,9 +51,9 @@ def exec_single_spot(spot: dict, output_dir_path: str):
         if prev_geometry != None and geometry == prev_geometry:
             continue
         time_limit_min = time_limit // 60
-        output_path = f"{output_dir_path}/{id}_{time_limit_min}.geojson"
-        with open(output_path, "w") as f:
-            json.dump(geometry, f, ensure_ascii=False, indent=2)
+        output_path = f"{output_dir_path}/{id}_{time_limit_min}.bin"
+        with open(output_path, "wb") as f:
+            pickle.dump(geometry, f)
         prev_geometry = geometry
 
 

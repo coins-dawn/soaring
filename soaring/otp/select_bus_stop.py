@@ -2,6 +2,7 @@ import json
 import random
 import sys
 
+
 def main():
     # コマンドライン引数の確認
     if len(sys.argv) < 2:
@@ -26,23 +27,19 @@ def main():
     for i in range(1, 51):
         lat = random.uniform(min_lat, max_lat)
         lon = random.uniform(min_lon, max_lon)
-        stops.append({
-            "id": f"comstop{i}",
-            "name": f"バス停{i}",
-            "lat": lat,
-            "lon": lon
-        })
+        stops.append(
+            {"id": f"comstop{i}", "name": f"バス停{i}", "lat": lat, "lon": lon}
+        )
 
     # JSON形式に整形
-    output = {
-        "combus-stops": stops
-    }
+    output = {"combus-stops": stops}
 
     # ファイルに出力
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=4)
 
     print(f"✅ {output_path} に書き出しました。")
+
 
 if __name__ == "__main__":
     main()

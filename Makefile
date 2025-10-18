@@ -30,6 +30,8 @@ area-search:
 	# spot
 	cp static/otp/area_search/toyama_spot_list.json work/otp/input/toyama_spot_list.json
 	python soaring/otp/area_search.py work/otp/input/toyama_spot_list.json work/otp/output/geojson/
+	# geojsonデータを圧縮
+	./soaring/otp/archive_geojson.sh
 
 # 車経路探索を行いコミュニティバスの経路を計算
 .PHONY: car-search
