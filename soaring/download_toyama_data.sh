@@ -1,6 +1,8 @@
 #!/bin/bash
 
 DSTDIR="$1"
+SOUTH_WEST="$2"
+NORTH_EAST="$3"
 
 mkdir -p $DSTDIR
 rm $DSTDIR/*
@@ -16,7 +18,7 @@ docker run --rm \
   -v "$(pwd):/data" \
   custom-osmium \
   extract \
-  --bbox=137.10170402536042,36.56588602838791,137.3220496915057,36.73683460188385 \
+  --bbox=$SOUTH_WEST,$NORTH_EAST \
   -o $DSTDIR/chubu-latest-filtered.osm.pbf \
   $DSTDIR/chubu-latest.osm.pbf
 rm $DSTDIR/chubu-latest.osm.pbf

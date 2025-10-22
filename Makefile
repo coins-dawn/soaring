@@ -1,7 +1,11 @@
+SOUTH_WEST=137.05662344824745,36.550071366242115
+NORTH_EAST=137.3963186386241,36.79659576973084
+
+
 # 富山県のOTP用データをダウンロード
 .PHONY: download
 download:
-	./soaring/download_toyama_data.sh work/input/
+	./soaring/download_toyama_data.sh work/input/ $(SOUTH_WEST) $(NORTH_EAST)
 
 # 0.0.0.0:8080でotpサーバを起動
 .PHONY: otp
@@ -9,7 +13,7 @@ otp:
 	java -Xmx3G -jar soaring/otp-1.5.0-shaded.jar --build ./work/input --inMemory
 
 .PHONY: convert-all
-convert-all: area-search car-search ptrans-search
+convert-all: area-search geojson-properties car-search ptrans-search
 
 # 到達圏探索を行いgeojsonを生成
 .PHONY: area-search
@@ -36,4 +40,3 @@ ptrans-search:
 		work/input/toyama_spot_list.json \
 		work/output/combus_stops.json \
 		work/output/
-
