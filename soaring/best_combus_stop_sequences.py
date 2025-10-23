@@ -75,38 +75,23 @@ def load_spot_dict():
         return json.load(f)
 
 
-def generate_combus_stop_sequence(
+def generate_combus_stop_sequence_list(
     combus_stops: list[str],
     combus_duration_dict: dict[tuple[str, str], int],
     duration_limit: int,
-) -> list[str]:
-    """バス停シーケンスを生成"""
-    current_stops = []
-    best_sequence = []
-    
-    # 初期の3点をランダムに選択
-    while True:
-        current_stops = random.sample(combus_stops, 3)
+) -> list[list[str]]:
+    candidate_sequences_list = []
+    bus_stop_num_min = duration_limit // 20
+    bus_stop_num_max = bus_stop_num_min * 2
+    while len(candidate_sequences_list) < 100:
+        sequence_size = random.randint(bus_stop_num_min, bus_stop_num_max)
+        current_stops = random.sample(combus_stops, sequence_size)
         duration_matrix = create_duration_matrix(current_stops, combus_duration_dict)
         route, total_duration = solve_tsp(duration_matrix)
         if total_duration <= duration_limit:
-            break
-    
-    # サイズを1つずつ大きくする
-    while True:
-        duration_matrix = create_duration_matrix(current_stops, combus_duration_dict)
-        route, total_duration = solve_tsp(duration_matrix)
-        if total_duration <= duration_limit:
-            # duration_limitを超えていない場合、ひとつふやす
-            best_sequence = [current_stops[i] for i in route[:-1]]
-            remaining_stops = [s for s in combus_stops if s not in current_stops]
-            if not remaining_stops:
-                return best_sequence         
-            next_stop = random.choice(remaining_stops)
-            current_stops.append(next_stop)
-        else:
-            # duration_limitを超えた場合、ひとつ前のシーケンスを返す
-            return best_sequence
+            sequence = [current_stops[i] for i in route[:-1]]
+            candidate_sequences_list.append(sequence)
+    return candidate_sequences_list
 
 
 def best_combus_stops_for_single_duration_limit(
@@ -115,11 +100,12 @@ def best_combus_stops_for_single_duration_limit(
     duration_limit: int,
     spot_type: str,
 ) -> list[str]:
-    combus_stop_sequence = generate_combus_stop_sequence(
+    combus_stop_sequence_list = generate_combus_stop_sequence_list(
         combus_stops, combus_duration_dict, duration_limit
     )
+    print(len(combus_stop_sequence_list))
 
-    return combus_stop_sequence
+    return combus_stop_sequence_list[0]
 
 
 def write_best_combus_stop_sequences(best_combus_sequences: dict, output_path: str):
@@ -138,8 +124,8 @@ def main():
 
     best_combus_stop_sequences = []
     for spot_type, _ in spot_dict.items():
-        # 30分から10分刻みで2時間まで
-        combus_duration_limits = list(range(30, 121, 10))
+        # 60分から10分刻みで2時間まで
+        combus_duration_limits = list(range(60, 121, 10))
         for combus_duration_limit in combus_duration_limits:
             best_combus_stop_sequence = best_combus_stops_for_single_duration_limit(
                 combus_stops, combus_duration_dict, combus_duration_limit, spot_type
