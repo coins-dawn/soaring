@@ -2,6 +2,7 @@ import sys
 import json
 import requests
 import pickle
+import time  # ファイル先頭に追加
 from shapely.geometry import shape, Polygon, MultiPolygon
 
 MAX_WALK_DISTANCE_M = 1000  # 徒歩の最大距離[m]
@@ -28,6 +29,18 @@ def load_population_mesh(input_path: str) -> list[Mesh]:
     return mesh_list
 
 
+def load_all_spots(
+    input_combus_stpops_json_path: str, input_toyama_spot_list_json_path: str
+) -> list[dict]:
+    """スポット情報を読み込み、結合してリストとして返す"""
+    with open(input_combus_stpops_json_path, "r") as f:
+        combus_stop_list_dict = json.load(f)
+    with open(input_toyama_spot_list_json_path, "r") as f:
+        toyama_spot_list_dict = json.load(f)
+    merged_spot_list_dict = combus_stop_list_dict | toyama_spot_list_dict
+    return [spot for spots in merged_spot_list_dict.values() for spot in spots]
+
+
 def find_intersecting_meshes(
     multi_polygon: MultiPolygon, mesh_list: list[Mesh]
 ) -> set[str]:
@@ -39,17 +52,12 @@ def find_intersecting_meshes(
     return mesh_codes
 
 
-def exec_single_spot(
-    spot, all_mesh_list, output_geojson_dir_path, output_geojson_txt_dir_path
-) -> set[str]:
-    id = spot["id"]
+def request_to_otp(spot: dict, time_limits: list) -> dict:
+    """
+    Open Trip Plannerで到達圏探索を実行する。
+    """
     lat = spot["lat"]
     lon = spot["lon"]
-
-    initial_time_limit = 10 * 60  # 10分
-    trial_num = 111  # 10分 -> 120分まで1分刻み
-
-    # リクエストの構築
     host = "http://localhost:8080"
     path = "/otp/routers/default/isochrone"
     params = {
@@ -60,18 +68,25 @@ def exec_single_spot(
         "maxWalkDistance": f"{MAX_WALK_DISTANCE_M}",
     }
     url = f"{host}{path}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
-    time_limits = [initial_time_limit + i * 60 for i in range(trial_num)]
     for time_limit in time_limits:
         url += f"&cutoffSec={time_limit}"
-
-    # OpenTripPlannerに問い合わせ
     response = requests.get(url)
     assert response
     assert response.status_code == 200
+    return response.json()
 
-    # 結果をgeojsonとして保存
-    response_json = response.json()
-    assert len(response_json["features"]) == trial_num
+
+def exec_single_spot(
+    spot, all_mesh_list, output_geojson_dir_path, output_geojson_txt_dir_path
+) -> set[str]:
+    # 時間制限リストの作成
+    initial_time_limit = 10 * 60  # 10分
+    trial_num = 111  # 10分 -> 120分まで1分刻み
+    time_limits = [initial_time_limit + i * 60 for i in range(trial_num)]
+
+    # Open Trip Plannerに問い合わせ
+    response_json = request_to_otp(spot, time_limits)
+
     result_dict = {}
     for i in range(trial_num):
         feature = response_json["features"][i]
@@ -94,6 +109,7 @@ def exec_single_spot(
             "geometry": geometry,
         }
         time_limit_min = time_limit // 60
+        id = spot["id"]
         output_path = f"{output_geojson_dir_path}/{id}_{time_limit_min}.bin"
         output_txt_path = f"{output_geojson_txt_dir_path}/{id}_{time_limit_min}.json"
         with open(output_path, "wb") as f:
@@ -133,17 +149,16 @@ def main(
     output_geojson_txt_dir_path,
     output_mesh_json_path,
 ):
-    with open(input_combus_stpops_json_path, "r") as f:
-        combus_stop_list_dict = json.load(f)
-    with open(input_toyama_spot_list_json_path, "r") as f:
-        toyama_spot_list_dict = json.load(f)
+    # データ入力データをロード
     all_mesh_list = load_population_mesh(input_population_mesh_json_path)
-    merged_spot_list_dict = combus_stop_list_dict | toyama_spot_list_dict
+    all_spot_list = load_all_spots(
+        input_combus_stpops_json_path, input_toyama_spot_list_json_path
+    )
 
-    all_spot_list = [spot for spots in merged_spot_list_dict.values() for spot in spots]
-
+    # 到達圏探索を実行しgeojsonを取得
     reachable_mesh_code_set = set()
-    for spot in all_spot_list:
+    total_spots = len(all_spot_list)
+    for i, spot in enumerate(all_spot_list, 1):
         reachable_mesh_code_set.update(
             exec_single_spot(
                 spot,
@@ -152,8 +167,12 @@ def main(
                 output_geojson_txt_dir_path,
             )
         )
+        progress = (i / total_spots) * 100
+        print(f"Progress: {progress:.1f}% ({i}/{total_spots})", end="\r")
         break
+    print()
 
+    # 結果を出力する
     write_reachable_meshes(
         all_mesh_list, reachable_mesh_code_set, output_mesh_json_path
     )
@@ -170,6 +189,8 @@ if __name__ == "__main__":
     output_geojson_dir_path = sys.argv[4]
     output_geojson_txt_dir_path = sys.argv[5]
     output_mesh_json_path = sys.argv[6]
+
+    start_time = time.time()
     main(
         input_combus_stpops_json_path,
         input_toyama_spot_list_json_path,
@@ -178,3 +199,6 @@ if __name__ == "__main__":
         output_geojson_txt_dir_path,
         output_mesh_json_path,
     )
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"実行時間: {execution_time:.2f}秒")
