@@ -31,7 +31,8 @@ area-search:
 		work/input/toyama_spot_list.json \
 		work/input/population-mesh.json \
 		work/output/geojson \
-		work/output/geojson_txt
+		work/output/geojson_txt \
+		work/output/mesh.json
 	./soaring/archive_geojson.sh
 
 # 車経路探索を行いコミュニティバスの経路を計算
