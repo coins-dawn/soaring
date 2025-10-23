@@ -1,6 +1,6 @@
 import json
 import random
-from itertools import combinations
+import requests
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 
@@ -83,7 +83,7 @@ def generate_combus_stop_sequence_list(
     candidate_sequences_list = []
     bus_stop_num_min = duration_limit // 20
     bus_stop_num_max = bus_stop_num_min * 2
-    while len(candidate_sequences_list) < 100:
+    while len(candidate_sequences_list) < 10:
         sequence_size = random.randint(bus_stop_num_min, bus_stop_num_max)
         current_stops = random.sample(combus_stops, sequence_size)
         duration_matrix = create_duration_matrix(current_stops, combus_duration_dict)
@@ -92,6 +92,34 @@ def generate_combus_stop_sequence_list(
             sequence = [current_stops[i] for i in route[:-1]]
             candidate_sequences_list.append(sequence)
     return candidate_sequences_list
+
+
+def request_to_prometheus(combus_stop_sequence: list[str], spot_type: str):
+    request_body = {
+        "target-spots": [spot_type],
+        "max-minute": 60, # TODO: ここもパラメタにする
+        "combus-stops": combus_stop_sequence
+    }
+    
+    try:
+        response = requests.post(
+            "http://127.0.0.1:8000/area/search",
+            json=request_body,
+            headers={"Content-Type": "application/json"},
+            timeout=30
+        )
+    except Exception as e:
+        print("prometheusとの通信に失敗しました。")
+        print(e)
+        return None
+    
+    if response.status_code != 200:
+        print("prometheusから返却されたステータスコードが200以外です。")
+        print(response.json())
+        return None    
+    
+    return response.json()
+
 
 
 def best_combus_stops_for_single_duration_limit(
@@ -103,9 +131,19 @@ def best_combus_stops_for_single_duration_limit(
     combus_stop_sequence_list = generate_combus_stop_sequence_list(
         combus_stops, combus_duration_dict, duration_limit
     )
-    print(len(combus_stop_sequence_list))
+    
+    best_score = -1
+    best_stop_sequence = None
+    for combus_stop_sequence in combus_stop_sequence_list:
+        response_json = request_to_prometheus(combus_stop_sequence, spot_type)
+        if not response_json:
+            continue
+        score = response_json["result"]["area"][spot_type]["reachable"]["with-combus-score"]
+        if score > best_score:
+            best_score= score
+            best_stop_sequence = combus_stop_sequence
 
-    return combus_stop_sequence_list[0]
+    return best_stop_sequence, best_score
 
 
 def write_best_combus_stop_sequences(best_combus_sequences: dict, output_path: str):
@@ -127,7 +165,7 @@ def main():
         # 60分から10分刻みで2時間まで
         combus_duration_limits = list(range(60, 121, 10))
         for combus_duration_limit in combus_duration_limits:
-            best_combus_stop_sequence = best_combus_stops_for_single_duration_limit(
+            best_combus_stop_sequence, score = best_combus_stops_for_single_duration_limit(
                 combus_stops, combus_duration_dict, combus_duration_limit, spot_type
             )
             best_combus_stop_sequences.append(
@@ -135,6 +173,7 @@ def main():
                     "spot-type": spot_type,
                     "duration-limit-m": combus_duration_limit,
                     "stop-sequence": best_combus_stop_sequence,
+                    "score": score
                 }
             )
 
