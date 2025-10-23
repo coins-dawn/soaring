@@ -15,6 +15,20 @@ class Mesh:
         self.population = int(feature["properties"].get("population"))
 
 
+class Geojson:
+    def __init__(
+        self,
+        id: str,
+        time_limit_min: int,
+        geometry: MultiPolygon,
+        reachable_mesh_codes: set[str],
+    ):
+        self.id: str = id
+        self.time_limit_min: int = time_limit_min
+        self.geometry: MultiPolygon = geometry
+        self.reachable_mesh_codes: set[str] = reachable_mesh_codes
+
+
 def load_population_mesh(input_path: str) -> list[Mesh]:
     """人口メッシュデータを読み込み、Meshオブジェクトのリストとして返す"""
     mesh_list = []
@@ -53,9 +67,7 @@ def find_intersecting_meshes(
 
 
 def request_to_otp(spot: dict, time_limits: list) -> dict:
-    """
-    Open Trip Plannerで到達圏探索を実行する。
-    """
+    """Open Trip Plannerで到達圏探索を実行する"""
     lat = spot["lat"]
     lon = spot["lon"]
     host = "http://localhost:8080"
@@ -71,14 +83,10 @@ def request_to_otp(spot: dict, time_limits: list) -> dict:
     for time_limit in time_limits:
         url += f"&cutoffSec={time_limit}"
     response = requests.get(url)
-    assert response
-    assert response.status_code == 200
     return response.json()
 
 
-def exec_single_spot(
-    spot, all_mesh_list, output_geojson_dir_path, output_geojson_txt_dir_path
-) -> set[str]:
+def exec_single_spot(spot, all_mesh_list) -> tuple[list[Geojson], set[str]]:
     # 時間制限リストの作成
     initial_time_limit = 10 * 60  # 10分
     trial_num = 111  # 10分 -> 120分まで1分刻み
@@ -91,34 +99,50 @@ def exec_single_spot(
     for i in range(trial_num):
         feature = response_json["features"][i]
         geometry = feature["geometry"]
-        assert geometry["type"] == "MultiPolygon"
         time = int(feature["properties"]["time"])
         result_dict[time] = geometry
 
     prev_geometry = None
     reachable_mesh_code_set = set()
+    geojson_list = []
     for time_limit in time_limits:
         geometry = result_dict[time_limit]
         if prev_geometry != None and geometry == prev_geometry:
             continue
         reachable_meshes = find_intersecting_meshes(shape(geometry), all_mesh_list)
         reachable_mesh_code_set.update(reachable_meshes)
+        geojson_list.append(
+            Geojson(
+                id=spot["id"],
+                time_limit_min=time_limit // 60,
+                geometry=geometry,
+                reachable_mesh_codes=reachable_meshes,
+            )
+        )
+        prev_geometry = geometry
+
+    return geojson_list, reachable_mesh_code_set
+
+
+def write_geojsons(
+    geojson_list: list[Geojson],
+    output_geojson_dir_path: str,
+    output_geojson_txt_dir_path: str,
+):
+    for geojson in geojson_list:
         feature = {
             "type": "Feature",
-            "properties": {"reachable-mesh": list(reachable_meshes)},
-            "geometry": geometry,
+            "properties": {"reachable-mesh": list(geojson.reachable_mesh_codes)},
+            "geometry": geojson.geometry,
         }
-        time_limit_min = time_limit // 60
-        id = spot["id"]
+        time_limit_min = geojson.time_limit_min
+        id = geojson.id
         output_path = f"{output_geojson_dir_path}/{id}_{time_limit_min}.bin"
         output_txt_path = f"{output_geojson_txt_dir_path}/{id}_{time_limit_min}.json"
         with open(output_path, "wb") as f:
             pickle.dump(feature, f)
         with open(output_txt_path, "w") as f:
             json.dump(feature, f)
-        prev_geometry = geometry
-
-    return reachable_mesh_code_set
 
 
 def write_reachable_meshes(
@@ -157,22 +181,20 @@ def main(
 
     # 到達圏探索を実行しgeojsonを取得
     reachable_mesh_code_set = set()
+    geojson_list = []
     total_spots = len(all_spot_list)
     for i, spot in enumerate(all_spot_list, 1):
-        reachable_mesh_code_set.update(
-            exec_single_spot(
-                spot,
-                all_mesh_list,
-                output_geojson_dir_path,
-                output_geojson_txt_dir_path,
-            )
-        )
+        geojson_list_tmp, reachable_meshes = exec_single_spot(spot, all_mesh_list)
+        reachable_mesh_code_set.update(reachable_meshes)
+        geojson_list.extend(geojson_list_tmp)
+        # 進捗を出力
         progress = (i / total_spots) * 100
         print(f"Progress: {progress:.1f}% ({i}/{total_spots})", end="\r")
         break
     print()
 
     # 結果を出力する
+    write_geojsons(geojson_list, output_geojson_dir_path, output_geojson_txt_dir_path)
     write_reachable_meshes(
         all_mesh_list, reachable_mesh_code_set, output_mesh_json_path
     )
