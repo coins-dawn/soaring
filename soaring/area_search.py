@@ -109,7 +109,32 @@ def calc_geojson_list(
     return geojson_list
 
 
-def exec_single_spot(spot, all_mesh_list) -> tuple[list[Geojson], set[str]]:
+def calc_and_update_reachable_meshs(
+    geojson_list: list[Geojson], all_mesh_list: list[Mesh]
+) -> set[str]:
+    """各GeoJSONに対して到達可能なメッシュコードを計算し、GeoJSONオブジェクトを更新する"""
+    # 高速化のため、最初に一番大きなGeojsonを計算
+    max_geojson = geojson_list[-1]
+    reachable_mesh_code_set = find_intersecting_meshes(
+        shape(max_geojson.geometry), all_mesh_list
+    )
+    geojson_list[-1].reachable_mesh_codes = reachable_mesh_code_set
+
+    # 二番目以降のGeojsonについては、最大geojsonで到達できたメッシュだけを探す
+    max_geojson_reachable_mesh_list = [
+        mesh for mesh in all_mesh_list if mesh.mesh_code in reachable_mesh_code_set
+    ]
+    for geojson in geojson_list[:-1]:
+        reachable_meshes = find_intersecting_meshes(
+            shape(geojson.geometry), max_geojson_reachable_mesh_list
+        )
+        geojson.reachable_mesh_codes.update(reachable_meshes)
+    return reachable_mesh_code_set
+
+
+def exec_single_spot(
+    spot: dict, all_mesh_list: list[Mesh]
+) -> tuple[list[Geojson], set[str]]:
     # 時間制限リストの作成
     initial_time_limit = 10 * 60  # 10分
     trial_num = 111  # 10分 -> 120分まで1分刻み
@@ -126,14 +151,9 @@ def exec_single_spot(spot, all_mesh_list) -> tuple[list[Geojson], set[str]]:
 
     # GeoJSONリストを計算
     geojson_list = calc_geojson_list(time_limits, time_to_geometry_dict, spot["id"])
-
-    # 各GeoJSONに対して到達可能なメッシュコードを計算
-    reachable_mesh_code_set = set()
-    for geojson in geojson_list:
-        reachable_meshes = find_intersecting_meshes(
-            shape(geojson.geometry), all_mesh_list
-        )
-        geojson.reachable_mesh_codes.update(reachable_meshes)
+    reachable_mesh_code_set = calc_and_update_reachable_meshs(
+        geojson_list, all_mesh_list
+    )
 
     return geojson_list, reachable_mesh_code_set
 
@@ -143,6 +163,7 @@ def write_geojsons(
     output_geojson_dir_path: str,
     output_geojson_txt_dir_path: str,
 ):
+    """GeoJSONリストをファイルに書き出す"""
     for geojson in geojson_list:
         feature = {
             "type": "Feature",
@@ -162,6 +183,7 @@ def write_geojsons(
 def write_reachable_meshes(
     mesh_list: list[Mesh], reachable_mesh_code_set: set[str], output_mesh_json_path: str
 ):
+    """到達可能なメッシュをファイルに書き出す"""
     reachable_meshes = []
     for mesh in mesh_list:
         if mesh.mesh_code not in reachable_mesh_code_set:
@@ -204,7 +226,6 @@ def main(
         # 進捗を出力
         progress = (i / total_spots) * 100
         print(f"Progress: {progress:.1f}% ({i}/{total_spots})", end="\r")
-        break
     print()
 
     # 結果を出力する
