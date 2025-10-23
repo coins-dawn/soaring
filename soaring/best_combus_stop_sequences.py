@@ -1,4 +1,5 @@
 import json
+import os
 
 
 def load_combus_stops():
@@ -42,8 +43,12 @@ def best_combus_stops_for_single_duration_limit(
     return []
 
 
-def write_best_combus_sequences(best_combus_sequences: dict, output_path: str):
-    pass
+def write_best_combus_stop_sequences(best_combus_sequences: dict, output_path: str):
+    output_data = {"best-combus-stop-sequences": []}
+    for best_combus_sequence in best_combus_sequences:
+        output_data["best-combus-stop-sequences"].append(best_combus_sequence)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(output_data, f, ensure_ascii=False, indent=4)
 
 
 def main():
@@ -52,24 +57,24 @@ def main():
     combus_duration_dict = load_combus_duration_dict()
     spot_dict = load_spot_dict()
 
-    best_combus_sequences = []
+    best_combus_stop_sequences = []
     for spot_type, _ in spot_dict.items():
         # 30分から10分刻みで2時間まで
         combus_duration_limits = list(range(30, 121, 10))
         for combus_duration_limit in combus_duration_limits:
-            best_combus_sequence = best_combus_stops_for_single_duration_limit(
+            best_combus_stop_sequence = best_combus_stops_for_single_duration_limit(
                 combus_stops, combus_duration_dict, combus_duration_limit, spot_type
             )
-            best_combus_sequences.append(
+            best_combus_stop_sequences.append(
                 {
                     "spot-type": spot_type,
                     "duration-limit-m": combus_duration_limit,
-                    "stop-sequence": best_combus_sequence,
+                    "stop-sequence": best_combus_stop_sequence,
                 }
             )
 
-    write_best_combus_sequences(
-        best_combus_sequences, "work/output/best_combus_sequences.json"
+    write_best_combus_stop_sequences(
+        best_combus_stop_sequences, "work/output/best_combus_stop_sequences.json"
     )
 
 
