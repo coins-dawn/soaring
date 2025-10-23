@@ -6,6 +6,8 @@ from ortools.constraint_solver import pywrapcp
 
 random.seed(42)
 
+TRYAL_NUM_PER_SETTING = 100 # 一つの設定ごとの試行回数
+
 
 def solve_tsp(duration_matrix):
     """OR-toolsを使用して巡回セールスマン問題を解く"""
@@ -86,7 +88,7 @@ def generate_combus_stop_sequence_list(
     candidate_sequences_list = []
     bus_stop_num_min = duration_limit // 20
     bus_stop_num_max = bus_stop_num_min * 2
-    while len(candidate_sequences_list) < 10:
+    while len(candidate_sequences_list) < TRYAL_NUM_PER_SETTING:
         sequence_size = random.randint(bus_stop_num_min, bus_stop_num_max)
         current_stops = random.sample(combus_stops, sequence_size)
         duration_matrix = create_duration_matrix(current_stops, combus_duration_dict)
@@ -173,7 +175,10 @@ def main():
     ]
 
     best_combus_stop_sequences = []
-    for spot_type, combus_duration_limit in spot_type_duration_limit_list:
+    total = len(spot_type_duration_limit_list)
+    for i, (spot_type, combus_duration_limit) in enumerate(
+        spot_type_duration_limit_list
+    ):
         best_combus_stop_sequence, score = best_combus_stops_for_single_duration_limit(
             combus_stops, combus_duration_dict, combus_duration_limit, spot_type
         )
@@ -185,6 +190,13 @@ def main():
                 "score": score,
             }
         )
+        # 進捗を表示
+        progress = (i / total) * 100
+        print(
+            f"Progress: {progress:.1f}% ({i}/{total}) - {spot_type} {combus_duration_limit}min",
+            end="\r",
+        )
+    print()
 
     write_best_combus_stop_sequences(
         best_combus_stop_sequences, "work/output/best_combus_stop_sequences.json"
