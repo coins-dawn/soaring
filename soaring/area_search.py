@@ -13,8 +13,7 @@ class Mesh:
     def __init__(self, feature: dict):
         self.mesh_code = feature["properties"]["meshCode"]
         self.geometry = shape(feature["geometry"])
-        if not isinstance(self.geometry, Polygon):
-            raise ValueError(f"Geometry must be Polygon, got {type(self.geometry)}")
+        self.population = int(feature["properties"].get("population"))
 
 
 def load_population_mesh(input_path: str) -> list[Mesh]:
@@ -83,11 +82,13 @@ def exec_single_spot(spot: dict, output_dir_path: str, mesh_list: list[Mesh]):
         result_dict[time] = geometry
 
     prev_geometry = None
+    reachable_mesh_set = set()
     for time_limit in time_limits:
         geometry = result_dict[time_limit]
         if prev_geometry != None and geometry == prev_geometry:
             continue
         reachable_meshes = find_intersecting_meshes(shape(geometry), mesh_list)
+        reachable_mesh_set.update(reachable_meshes)
         feature = {
             "type": "Feature",
             "properties": {
@@ -104,12 +105,15 @@ def exec_single_spot(spot: dict, output_dir_path: str, mesh_list: list[Mesh]):
             json.dump(feature, f)
         prev_geometry = geometry
 
+    return reachable_mesh_set
 
 def exec_single_category(
     spot_list: list, output_dir_path: str, mesh_list: list
 ):
+    reachable_mesh_set = set()
     for spot in spot_list:
-        exec_single_spot(spot, output_dir_path, mesh_list)
+        reachable_mesh_set.update(exec_single_spot(spot, output_dir_path, mesh_list))
+    return reachable_mesh_set
 
 
 def main(area_search_json_path, output_dir_path):
@@ -118,8 +122,38 @@ def main(area_search_json_path, output_dir_path):
 
     mesh_list = load_population_mesh(MESH_FILE_PATH)
 
+    reachable_mesh_set = set()
     for _, spot_list in area_search_json.items():
-        exec_single_category(spot_list, output_dir_path, mesh_list)
+        reachable_mesh_set.update(exec_single_category(spot_list, output_dir_path, mesh_list))
+    
+    # 到達可能なメッシュのみを抽出してJSON形式で出力
+    reachable_meshes = []
+    for mesh in mesh_list:
+        if mesh.mesh_code not in reachable_mesh_set:
+            continue
+            
+        # GeoJSONフォーマットに変換
+        mesh_feature = {
+            "mesh_code": mesh.mesh_code,
+            "population": mesh.population,
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [[p[0], p[1]] for p in mesh.geometry.exterior.coords]
+                ]
+            }
+        }
+        reachable_meshes.append(mesh_feature)
+
+    # mesh.jsonを出力
+    output_mesh_path = f"work/output/mesh.json"
+    with open(output_mesh_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {"mesh": reachable_meshes},
+            f,
+            ensure_ascii=False,
+            indent=4
+        )
 
 
 if __name__ == "__main__":
