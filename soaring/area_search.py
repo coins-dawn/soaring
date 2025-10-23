@@ -86,6 +86,29 @@ def request_to_otp(spot: dict, time_limits: list) -> dict:
     return response.json()
 
 
+def calc_geojson_list(
+    time_limits: list, time_to_geometry_dict: dict, spot_id: str
+) -> list[Geojson]:
+    """GeoJSONリストを計算する"""
+    prev_geometry = None
+    geojson_list = []
+    for time_limit in time_limits:
+        geometry = time_to_geometry_dict[time_limit]
+        # ひとつ前と一緒なら出力しない
+        if prev_geometry != None and geometry == prev_geometry:
+            continue
+        geojson_list.append(
+            Geojson(
+                id=spot_id,
+                time_limit_min=time_limit // 60,
+                geometry=geometry,
+                reachable_mesh_codes=set(),  # 一旦空で初期化
+            )
+        )
+        prev_geometry = geometry
+    return geojson_list
+
+
 def exec_single_spot(spot, all_mesh_list) -> tuple[list[Geojson], set[str]]:
     # 時間制限リストの作成
     initial_time_limit = 10 * 60  # 10分
@@ -94,32 +117,23 @@ def exec_single_spot(spot, all_mesh_list) -> tuple[list[Geojson], set[str]]:
 
     # Open Trip Plannerに問い合わせ
     response_json = request_to_otp(spot, time_limits)
-
-    result_dict = {}
+    time_to_geometry_dict = {}
     for i in range(trial_num):
         feature = response_json["features"][i]
         geometry = feature["geometry"]
         time = int(feature["properties"]["time"])
-        result_dict[time] = geometry
+        time_to_geometry_dict[time] = geometry
 
-    prev_geometry = None
+    # GeoJSONリストを計算
+    geojson_list = calc_geojson_list(time_limits, time_to_geometry_dict, spot["id"])
+
+    # 各GeoJSONに対して到達可能なメッシュコードを計算
     reachable_mesh_code_set = set()
-    geojson_list = []
-    for time_limit in time_limits:
-        geometry = result_dict[time_limit]
-        if prev_geometry != None and geometry == prev_geometry:
-            continue
-        reachable_meshes = find_intersecting_meshes(shape(geometry), all_mesh_list)
-        reachable_mesh_code_set.update(reachable_meshes)
-        geojson_list.append(
-            Geojson(
-                id=spot["id"],
-                time_limit_min=time_limit // 60,
-                geometry=geometry,
-                reachable_mesh_codes=reachable_meshes,
-            )
+    for geojson in geojson_list:
+        reachable_meshes = find_intersecting_meshes(
+            shape(geojson.geometry), all_mesh_list
         )
-        prev_geometry = geometry
+        geojson.reachable_mesh_codes.update(reachable_meshes)
 
     return geojson_list, reachable_mesh_code_set
 
