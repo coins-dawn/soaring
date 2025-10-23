@@ -13,19 +13,25 @@ otp:
 	java -Xmx3G -jar soaring/otp-1.5.0-shaded.jar --build ./work/input --inMemory
 
 .PHONY: convert-all
-convert-all: area-search geojson-properties car-search ptrans-search
+convert-all: select-bus-stops area-search geojson-properties car-search ptrans-search
+
+# コミュニティバスのバス停を選定する
+.PHONY: select-bus-stops
+select-bus-stops:
+	python soaring/select_bus_stop.py work/output/combus_stops.json
 
 # 到達圏探索を行いgeojsonを生成
 .PHONY: area-search
 area-search:
 	cp static/population-mesh.json work/input/population-mesh.json
-	# バス停
-	python soaring/select_bus_stop.py work/output/combus_stops.json
-	python soaring/area_search.py work/output/combus_stops.json work/output/geojson
-	# spot
 	cp static/toyama_spot_list.json work/input/toyama_spot_list.json
-	python soaring/area_search.py work/input/toyama_spot_list.json work/output/geojson
-	# geojsonデータを圧縮
+	mkdir -p work/output/geojson work/output/geojson_txt
+	python soaring/area_search.py \
+		work/output/combus_stops.json \
+		work/input/toyama_spot_list.json \
+		work/input/population-mesh.json \
+		work/output/geojson \
+		work/output/geojson_txt
 	./soaring/archive_geojson.sh
 
 # 車経路探索を行いコミュニティバスの経路を計算
