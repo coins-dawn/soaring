@@ -47,3 +47,8 @@ ptrans-search:
 		work/input/toyama_spot_list.json \
 		work/output/combus_stops.json \
 		work/output/
+
+# 最適なコミュニティバス巡回経路を作成する
+.PHONY: best-combus-stop-sequences
+best-combus-stop-sequences:
+	python soaring/best_combus_stop_sequences.py
