@@ -19,6 +19,8 @@ convert-all: select-bus-stops area-search geojson-properties car-search ptrans-s
 .PHONY: select-bus-stops
 select-bus-stops:
 	python soaring/select_bus_stop.py work/output/combus_stops.json
+	python soaring/select_ref_points.py work/output/select_ref_points.csv $(SOUTH_WEST) $(NORTH_EAST)
+
 
 # 到達圏探索を行いgeojsonを生成
 .PHONY: area-search

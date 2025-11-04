@@ -6,7 +6,7 @@ from ortools.constraint_solver import pywrapcp
 
 random.seed(42)
 
-TRYAL_NUM_PER_SETTING = 100 # 一つの設定ごとの試行回数
+TRYAL_NUM_PER_SETTING = 100  # 一つの設定ごとの試行回数
 
 
 def solve_tsp(duration_matrix):
