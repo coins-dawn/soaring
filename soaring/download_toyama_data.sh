@@ -1,8 +1,10 @@
 #!/bin/bash
 
 DSTDIR="$1"
-SOUTH_WEST="$2"
-NORTH_EAST="$3"
+TARGET_REGION_FILE="$2"
+
+SOUTH_WEST=$(cat $TARGET_REGION_FILE | jq -r '."south-west" | [.lon, .lat] | join(",")')
+NORTH_EAST=$(cat $TARGET_REGION_FILE | jq -r '."north-east" | [.lon, .lat] | join(",")')
 
 mkdir -p $DSTDIR
 rm $DSTDIR/*

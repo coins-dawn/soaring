@@ -1,6 +1,7 @@
 import sys
 import json
 import requests
+import datetime
 import pickle
 import time  # ファイル先頭に追加
 from shapely.geometry import shape, Polygon, MultiPolygon
@@ -72,10 +73,14 @@ def request_to_otp(spot: dict, time_limits: list) -> dict:
     lon = spot["lon"]
     host = "http://localhost:8080"
     path = "/otp/routers/default/isochrone"
+    
+    # 現在の日付を取得してMM-DD-YYYYフォーマットに変換
+    current_date = datetime.datetime.now().strftime("%m-%d-%Y")
+    
     params = {
         "fromPlace": f"{lat},{lon}",
         "mode": "WALK,TRANSIT",
-        "date": "10-23-2025",
+        "date": current_date,
         "time": "10:00am",
         "maxWalkDistance": f"{MAX_WALK_DISTANCE_M}",
     }
