@@ -1,6 +1,3 @@
-SOUTH_WEST=137.05662344824745,36.550071366242115
-NORTH_EAST=137.3963186386241,36.79659576973084
-
 # 富山県のOTP用データをダウンロード
 .PHONY: download
 download:
@@ -19,12 +16,12 @@ convert-all: select-spots area-search car-search ptrans-search best-combus-stop-
 .PHONY: select-spots
 select-spots:
 	mkdir -p work/output/archive/
+	cp static/target_region.json work/input
 	python soaring/select_bus_stop.py work/output/archive/combus_stops.json
 	python soaring/select_ref_points.py \
+		work/input/target_region.json \
 		work/output/archive/select_ref_points.csv \
 		work/output/select_ref_points.kml \
-		$(SOUTH_WEST) \
-		$(NORTH_EAST)
 
 
 # 到達圏探索を行いgeojsonを生成
@@ -69,6 +66,6 @@ best-combus-stop-sequences:
 # 生成されたファイルたちをアーカイブする
 .PHONY: archive
 archive:
-# 	zip -q -r -j work/output/archive.zip work/output/archive/*
 	cp static/toyama_spot_list.json work/output/archive/
+	cp static/target_region.json work/output/archive/
 	cd work/output/archive && zip -q -r ../archive.zip ./*

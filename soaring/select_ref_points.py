@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 from typing import Tuple
 
 # 格子の分割数
@@ -13,12 +14,6 @@ try:
     _HAS_SIMPLEKML = True
 except Exception:
     _HAS_SIMPLEKML = False
-
-
-def parse_coordinate(coord_str: str) -> Tuple[float, float]:
-    """カンマ区切りの座標文字列をパース"""
-    lon, lat = map(float, coord_str.split(","))
-    return lon, lat
 
 
 def generate_grid_points(
@@ -63,16 +58,23 @@ def write_kml(output_path: str, points: list):
     print(f"KML written to: {kml_path}")
 
 
+def read_target_region(file_path: str):
+    with open(file_path, "r") as f:
+        return json.load(f)
+
+
 def main():
-    output_path = sys.argv[1]
-    output_kml_path = sys.argv[2]
-    sw_coord = sys.argv[3]
-    ne_coord = sys.argv[4]
+    input_target_region_file = sys.argv[1]
+    output_path = sys.argv[2]
+    output_kml_path = sys.argv[3]
 
     try:
         # 座標のパース
-        sw_lon, sw_lat = parse_coordinate(sw_coord)
-        ne_lon, ne_lat = parse_coordinate(ne_coord)
+        target_region_dict = read_target_region(input_target_region_file)
+        sw_lon = target_region_dict["south-west"]["lon"]
+        sw_lat = target_region_dict["south-west"]["lat"]
+        ne_lon = target_region_dict["north-east"]["lon"]
+        ne_lat = target_region_dict["north-east"]["lat"]
 
         # 格子点の生成
         points = generate_grid_points(sw_lon, sw_lat, ne_lon, ne_lat)
