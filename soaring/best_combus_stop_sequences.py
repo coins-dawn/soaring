@@ -1,4 +1,5 @@
 import json
+import sys
 import random
 import requests
 from ortools.constraint_solver import routing_enums_pb2
@@ -6,7 +7,7 @@ from ortools.constraint_solver import pywrapcp
 
 random.seed(42)
 
-TRYAL_NUM_PER_SETTING = 100 # 一つの設定ごとの試行回数
+TRYAL_NUM_PER_SETTING = 100  # 一つの設定ごとの試行回数
 
 
 def solve_tsp(duration_matrix):
@@ -60,14 +61,14 @@ def create_duration_matrix(stops, duration_dict):
     return matrix
 
 
-def load_combus_stops():
-    with open("work/output/combus_stops.json", "r") as f:
+def load_combus_stops(input_combus_stops_file: str):
+    with open(input_combus_stops_file, "r") as f:
         combus_stops_dict = json.load(f)
     return [combus_stop["id"] for combus_stop in combus_stops_dict["combus-stops"]]
 
 
-def load_combus_duration_dict():
-    with open("work/output/combus_routes.json", "r") as f:
+def load_combus_duration_dict(input_combus_routes_file: str):
+    with open(input_combus_routes_file, "r") as f:
         combus_routes_dict = json.load(f)
     return {
         (combus_route["from"], combus_route["to"]): combus_route["duration_m"]
@@ -75,8 +76,8 @@ def load_combus_duration_dict():
     }
 
 
-def load_spot_dict():
-    with open("work/input/toyama_spot_list.json", "r") as f:
+def load_spot_dict(input_toyama_spot_list_file: str):
+    with open(input_toyama_spot_list_file, "r") as f:
         return json.load(f)
 
 
@@ -160,11 +161,16 @@ def write_best_combus_stop_sequences(best_combus_sequences: dict, output_path: s
         json.dump(output_data, f, ensure_ascii=False, indent=4)
 
 
-def main():
+def main(
+    input_combus_stops_file: str,
+    input_combus_routes_file: str,
+    input_toyama_spot_list_file: str,
+    output_best_combus_stop_sequences_file: str,
+):
     # データのロード
-    combus_stops = load_combus_stops()
-    combus_duration_dict = load_combus_duration_dict()
-    spot_dict = load_spot_dict()
+    combus_stops = load_combus_stops(input_combus_stops_file)
+    combus_duration_dict = load_combus_duration_dict(input_combus_routes_file)
+    spot_dict = load_spot_dict(input_toyama_spot_list_file)
 
     # 60分から10分刻みで2時間まで
     combus_duration_limits = list(range(60, 121, 10))
@@ -199,9 +205,18 @@ def main():
     print()
 
     write_best_combus_stop_sequences(
-        best_combus_stop_sequences, "work/output/best_combus_stop_sequences.json"
+        best_combus_stop_sequences, output_best_combus_stop_sequences_file
     )
 
 
 if __name__ == "__main__":
-    main()
+    input_combus_stops_file = sys.argv[1]
+    input_combus_routes_file = sys.argv[2]
+    input_toyama_spot_list_file = sys.argv[3]
+    output_best_combus_stop_sequences_file = sys.argv[4]
+    main(
+        input_combus_stops_file,
+        input_combus_routes_file,
+        input_toyama_spot_list_file,
+        output_best_combus_stop_sequences_file,
+    )

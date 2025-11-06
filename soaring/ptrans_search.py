@@ -24,7 +24,7 @@ def load_stops(json_path):
 
 
 def get_travel_time(from_spot, to_stop):
-    """スポットからバス停までの所要時間を取得"""
+    """スポットからバス停までの所要時間と経路形状を取得"""
     base_url = "http://localhost:8080/otp/routers/default/plan"
 
     params = {
@@ -42,17 +42,41 @@ def get_travel_time(from_spot, to_stop):
         response.raise_for_status()
         data = response.json()
 
-        # 経路が見つかった場合、所要時間（分）を返す
+        # 経路が見つかった場合、所要時間（分）と形状を返す
         if "plan" in data and data["plan"]["itineraries"]:
             itinerary = data["plan"]["itineraries"][0]
             duration_m = itinerary["duration"] / 60  # 秒から分に変換
             walk_distance_m = itinerary["walkDistance"]
-            return int(duration_m), int(walk_distance_m)
-        return None, None
+            geometry = itinerary["legs"][0]["legGeometry"][
+                "points"
+            ]  # Google Polyline形式
+
+            # 区間情報の取得
+            sections = []
+            for leg in itinerary["legs"]:
+                section = {
+                    "mode": leg["mode"],
+                    "from": {
+                        "name": leg["from"].get("name", ""),
+                        "lat": leg["from"]["lat"],
+                        "lon": leg["from"]["lon"],
+                    },
+                    "to": {
+                        "name": leg["to"].get("name", ""),
+                        "lat": leg["to"]["lat"],
+                        "lon": leg["to"]["lon"],
+                    },
+                    "duration_m": int(leg["duration"] / 60),  # 秒から分に変換
+                    "distance_m": int(leg["distance"]),
+                }
+                sections.append(section)
+
+            return int(duration_m), int(walk_distance_m), geometry, sections
+        return None, None, None, None
 
     except Exception as e:
         print(f"Error calculating travel time: {e}")
-        return None, None
+        return None, None, None, None
 
 
 def main():
@@ -85,7 +109,9 @@ def main():
             print(f"Processing pair {current_pair}/{total_pairs}...")
 
             # 所要時間を計算
-            duration_m, walk_distance_m = get_travel_time(spot, stop)
+            duration_m, walk_distance_m, geometry, sections = get_travel_time(
+                spot, stop
+            )
 
             # 結果を追加
             if duration_m is not None:
@@ -95,6 +121,8 @@ def main():
                         "to": stop["id"],
                         "duration_m": duration_m,
                         "walk_distance_m": walk_distance_m,
+                        "geometry": geometry,
+                        "sections": sections,
                     }
                 )
 
