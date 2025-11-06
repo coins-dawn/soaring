@@ -47,13 +47,36 @@ def get_travel_time(from_spot, to_stop):
             itinerary = data["plan"]["itineraries"][0]
             duration_m = itinerary["duration"] / 60  # 秒から分に変換
             walk_distance_m = itinerary["walkDistance"]
-            geometry = itinerary["legs"][0]["legGeometry"]["points"]  # Google Polyline形式
-            return int(duration_m), int(walk_distance_m), geometry
-        return None, None, None
+            geometry = itinerary["legs"][0]["legGeometry"][
+                "points"
+            ]  # Google Polyline形式
+
+            # 区間情報の取得
+            sections = []
+            for leg in itinerary["legs"]:
+                section = {
+                    "mode": leg["mode"],
+                    "from": {
+                        "name": leg["from"].get("name", ""),
+                        "lat": leg["from"]["lat"],
+                        "lon": leg["from"]["lon"],
+                    },
+                    "to": {
+                        "name": leg["to"].get("name", ""),
+                        "lat": leg["to"]["lat"],
+                        "lon": leg["to"]["lon"],
+                    },
+                    "duration_m": int(leg["duration"] / 60),  # 秒から分に変換
+                    "distance_m": int(leg["distance"]),
+                }
+                sections.append(section)
+
+            return int(duration_m), int(walk_distance_m), geometry, sections
+        return None, None, None, None
 
     except Exception as e:
         print(f"Error calculating travel time: {e}")
-        return None, None, None
+        return None, None, None, None
 
 
 def main():
@@ -86,7 +109,9 @@ def main():
             print(f"Processing pair {current_pair}/{total_pairs}...")
 
             # 所要時間を計算
-            duration_m, walk_distance_m, geometry = get_travel_time(spot, stop)
+            duration_m, walk_distance_m, geometry, sections = get_travel_time(
+                spot, stop
+            )
 
             # 結果を追加
             if duration_m is not None:
@@ -97,6 +122,7 @@ def main():
                         "duration_m": duration_m,
                         "walk_distance_m": walk_distance_m,
                         "geometry": geometry,
+                        "sections": sections,
                     }
                 )
 

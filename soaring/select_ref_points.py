@@ -64,19 +64,10 @@ def write_kml(output_path: str, points: list):
 
 
 def main():
-    # コマンドライン引数の確認
-    if len(sys.argv) != 4:
-        print(
-            "Usage: python select_ref_points.py <output_path> <south_west_coord> <north_east_coord>"
-        )
-        print(
-            "Example: python select_ref_points.py output.csv 137.0566,36.5500 137.3963,36.7965"
-        )
-        sys.exit(1)
-
     output_path = sys.argv[1]
-    sw_coord = sys.argv[2]
-    ne_coord = sys.argv[3]
+    output_kml_path = sys.argv[2]
+    sw_coord = sys.argv[3]
+    ne_coord = sys.argv[4]
 
     try:
         # 座標のパース
@@ -92,7 +83,7 @@ def main():
         print(f"CSV output written to: {output_path}")
 
         # KML出力（可能なら）
-        write_kml(output_path, points)
+        write_kml(output_kml_path, points)
 
     except Exception as e:
         print(f"Error: {e}")
