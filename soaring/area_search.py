@@ -11,9 +11,9 @@ MAX_WALK_DISTANCE_M = 1000  # 徒歩の最大距離[m]
 
 class Mesh:
     def __init__(self, feature: dict):
-        self.mesh_code = feature["properties"]["meshCode"]
+        self.mesh_code = feature["mesh_code"]
         self.geometry = shape(feature["geometry"])
-        self.population = int(feature["properties"].get("population"))
+        self.population = feature["population"]
 
 
 class Geojson:
@@ -35,7 +35,7 @@ def load_population_mesh(input_path: str) -> list[Mesh]:
     mesh_list = []
     with open(input_path, "r", encoding="utf-8") as f:
         data = json.load(f)
-        for feature in data["features"]:
+        for feature in data["mesh"]:
             try:
                 mesh = Mesh(feature)
                 mesh_list.append(mesh)
@@ -73,10 +73,10 @@ def request_to_otp(spot: dict, time_limits: list) -> dict:
     lon = spot["lon"]
     host = "http://localhost:8080"
     path = "/otp/routers/default/isochrone"
-    
+
     # 現在の日付を取得してMM-DD-YYYYフォーマットに変換
     current_date = datetime.datetime.now().strftime("%m-%d-%Y")
-    
+
     params = {
         "fromPlace": f"{lat},{lon}",
         "mode": "WALK,TRANSIT",
@@ -212,7 +212,6 @@ def main(
     input_population_mesh_json_path,
     output_geojson_dir_path,
     output_geojson_txt_dir_path,
-    output_mesh_json_path,
 ):
     # データ入力データをロード
     all_mesh_list = load_population_mesh(input_population_mesh_json_path)
@@ -221,12 +220,10 @@ def main(
     )
 
     # 到達圏探索を実行しgeojsonを取得
-    reachable_mesh_code_set = set()
     geojson_list = []
     total_spots = len(all_spot_list)
     for i, spot in enumerate(all_spot_list, 1):
-        geojson_list_tmp, reachable_meshes = exec_single_spot(spot, all_mesh_list)
-        reachable_mesh_code_set.update(reachable_meshes)
+        geojson_list_tmp, _ = exec_single_spot(spot, all_mesh_list)
         geojson_list.extend(geojson_list_tmp)
         # 進捗を出力
         progress = (i / total_spots) * 100
@@ -235,22 +232,14 @@ def main(
 
     # 結果を出力する
     write_geojsons(geojson_list, output_geojson_dir_path, output_geojson_txt_dir_path)
-    write_reachable_meshes(
-        all_mesh_list, reachable_mesh_code_set, output_mesh_json_path
-    )
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 7:
-        print("Invalid arguments")
-        sys.exit(1)
-
     input_combus_stpops_json_path = sys.argv[1]
     input_toyama_spot_list_json_path = sys.argv[2]
     input_population_mesh_json_path = sys.argv[3]
     output_geojson_dir_path = sys.argv[4]
     output_geojson_txt_dir_path = sys.argv[5]
-    output_mesh_json_path = sys.argv[6]
 
     start_time = time.time()
     main(
@@ -259,7 +248,6 @@ if __name__ == "__main__":
         input_population_mesh_json_path,
         output_geojson_dir_path,
         output_geojson_txt_dir_path,
-        output_mesh_json_path,
     )
     end_time = time.time()
     execution_time = end_time - start_time
