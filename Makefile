@@ -1,7 +1,7 @@
 # 富山県のOTP用データをダウンロード
 .PHONY: download
 download:
-	./soaring/download_toyama_data.sh work/input/ $(SOUTH_WEST) $(NORTH_EAST)
+	./soaring/download_toyama_data.sh work/input/ static/target_region.json
 
 # 0.0.0.0:8080でotpサーバを起動
 .PHONY: otp
