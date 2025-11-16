@@ -36,14 +36,6 @@ def generate_grid_points(
     return points
 
 
-def write_csv(output_path: str, points: list):
-    """CSV (lat,lon) を出力"""
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write("lat,lon\n")
-        for lat, lon in points:
-            f.write(f"{lat:.6f},{lon:.6f}\n")
-
-
 def write_kml(output_path: str, points: list):
     """KML を出力（simplekml がインストールされている場合）"""
     if not _HAS_SIMPLEKML:
@@ -63,6 +55,18 @@ def read_target_region(file_path: str):
         return json.load(f)
 
 
+def write_json(output_path: str, points: list):
+    """地点情報をJSONとして出力"""
+    ref_points = []
+    for i, (lat, lon) in enumerate(points, 1):
+        point = {"id": f"refpoint{i}", "name": f"地点{i}", "lat": lat, "lon": lon}
+        ref_points.append(point)
+
+    output = {"ref-points": ref_points}
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(output, f, ensure_ascii=False, indent=4)
+
+
 def main():
     input_target_region_file = sys.argv[1]
     output_path = sys.argv[2]
@@ -79,10 +83,10 @@ def main():
         # 格子点の生成
         points = generate_grid_points(sw_lon, sw_lat, ne_lon, ne_lat)
 
-        # CSV出力
-        write_csv(output_path, points)
+        # JSON出力
+        write_json(output_path, points)
         print(f"Generated {len(points)} points")
-        print(f"CSV output written to: {output_path}")
+        print(f"JSON output written to: {output_path}")
 
         # KML出力（可能なら）
         write_kml(output_kml_path, points)

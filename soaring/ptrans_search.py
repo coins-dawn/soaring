@@ -1,7 +1,7 @@
 import json
 import requests
 import sys
-import os
+import datetime
 
 MAX_WALK_DISTANCE_M = 1000  # 徒歩の最大距離[m]
 
@@ -23,17 +23,27 @@ def load_stops(json_path):
     return data.get("combus-stops", [])
 
 
-def get_travel_time(from_spot, to_stop):
+def load_refpoints(json_path):
+    """参照点データを読み込む"""
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return data.get("ref-points", [])
+
+
+def get_travel_time(from_spot, to_stop, max_walk_distance_m: int):
     """スポットからバス停までの所要時間と経路形状を取得"""
     base_url = "http://localhost:8080/otp/routers/default/plan"
+    
+    # 現在の日付を取得してMM-DD-YYYYフォーマットに変換
+    current_date = datetime.datetime.now().strftime("%m-%d-%Y")
 
     params = {
         "fromPlace": f"{from_spot['lat']},{from_spot['lon']}",
         "toPlace": f"{to_stop['lat']},{to_stop['lon']}",
         "mode": "WALK,TRANSIT",
-        "date": "10-01-2025",
+        "date": current_date,
         "time": "10:00:00",
-        "maxWalkDistance": f"{MAX_WALK_DISTANCE_M}",
+        "maxWalkDistance": max_walk_distance_m,
         "numItineraries": 1,
     }
 
@@ -79,41 +89,27 @@ def get_travel_time(from_spot, to_stop):
         return None, None, None, None
 
 
-def main():
-    if len(sys.argv) != 4:
-        print(
-            "Usage: python ptrans_spot_to_stops.py <spots_json> <stops_json> <output_dir>"
-        )
-        sys.exit(1)
-
-    spots_path = sys.argv[1]
-    stops_path = sys.argv[2]
-    output_dir = sys.argv[3]
-    os.makedirs(output_dir, exist_ok=True)
-
-    # データの読み込み
-    spots = load_spots(spots_path)
-    stops = load_stops(stops_path)
-    print(f"Loaded {len(spots)} spots and {len(stops)} stops")
-
-    # 結果を格納するリスト
+def execute(elem_list_1: list, elem_list_2: list, max_walk_distance_m: int):
+    """
+    与えられたリストの掛け合わせの数だけ公共交通探索を行う。
+    """
     routes = []
-
-    # すべての組み合わせに対して所要時間を計算
-    total_pairs = len(spots) * len(stops)
+    total_pairs = len(elem_list_1) * len(elem_list_2)
     current_pair = 0
-
-    for spot in spots:
-        for stop in stops:
+    last_percentage = -1
+    for spot in elem_list_1:
+        for stop in elem_list_2:
+            # 進捗を出力
             current_pair += 1
-            print(f"Processing pair {current_pair}/{total_pairs}...")
+            current_percentage = int((current_pair / total_pairs) * 100)
+            if current_percentage > last_percentage:
+                print(f"Progress: {current_percentage}%")
+                last_percentage = current_percentage
 
-            # 所要時間を計算
+            # 本処理
             duration_m, walk_distance_m, geometry, sections = get_travel_time(
-                spot, stop
+                spot, stop, max_walk_distance_m
             )
-
-            # 結果を追加
             if duration_m is not None:
                 routes.append(
                     {
@@ -125,15 +121,40 @@ def main():
                         "sections": sections,
                     }
                 )
+    return routes
 
-    # 結果をJSONファイルに出力
-    output = {"spot-to-stops": routes}
-    output_path = os.path.join(output_dir, "spot_to_stops.json")
-    with open(output_path, "w", encoding="utf-8") as f:
+
+def write_json(output_dir: str, key: str, routes: list):
+    output = {key: routes}
+    with open(output_dir + f"/{key}.json", "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=4)
 
-    print(f"Results written to {output_path}")
+
+def main(
+    input_spots_path: str,
+    input_stops_path: str,
+    input_refpoint_path: str,
+    output_dir: str,
+):
+    # データの読み込み
+    spots = load_spots(input_spots_path)
+    stops = load_stops(input_stops_path)
+    refpoints = load_refpoints(input_refpoint_path)
+
+    spots_to_stops = execute(spots, stops, MAX_WALK_DISTANCE_M)
+    write_json(output_dir, "spot_to_stops", spots_to_stops)
+
+    # spots to refpointsは徒歩距離が上限を超えることを許容する
+    spots_to_refpoints = execute(spots, refpoints, MAX_WALK_DISTANCE_M * 1000)
+    write_json(output_dir, "spot_to_refpoints", spots_to_refpoints)
+
+    stops_to_refpoints = execute(stops, refpoints, MAX_WALK_DISTANCE_M)
+    write_json(output_dir, "stop_to_refpoints", stops_to_refpoints)
 
 
 if __name__ == "__main__":
-    main()
+    input_spots_path = sys.argv[1]
+    input_stops_path = sys.argv[2]
+    input_refpoint_path = sys.argv[3]
+    output_dir = sys.argv[4]
+    main(input_spots_path, input_stops_path, input_refpoint_path, output_dir)

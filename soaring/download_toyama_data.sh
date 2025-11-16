@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -eux
+
 DSTDIR="$1"
 TARGET_REGION_FILE="$2"
 
@@ -15,7 +17,7 @@ rm $DSTDIR/*
 curl -L https://download.geofabrik.de/asia/japan/chubu-latest.osm.pbf -o $DSTDIR/chubu-latest.osm.pbf
 
 # 北陸全体から富山市周辺のみを抽出
-docker build -t custom-osmium -f Dockerfile_filter_network .
+# docker build -t custom-osmium -f Dockerfile_filter_network .
 docker run --rm \
   -v "$(pwd):/data" \
   custom-osmium \

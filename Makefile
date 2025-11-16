@@ -20,8 +20,8 @@ select-spots:
 	python soaring/select_bus_stop.py work/output/archive/combus_stops.json
 	python soaring/select_ref_points.py \
 		work/input/target_region.json \
-		work/output/archive/select_ref_points.csv \
-		work/output/select_ref_points.kml \
+		work/output/archive/ref_points.json \
+		work/output/ref_points.kml \
 
 # メッシュにフィルタをかける
 .PHONY: filter-mesh
@@ -59,7 +59,8 @@ ptrans-search:
 	python soaring/ptrans_search.py \
 		work/input/toyama_spot_list.json \
 		work/output/archive/combus_stops.json \
-		work/output/archive/
+		work/output/archive/ref_points.json \
+		work/output/archive
 
 # 最適なコミュニティバス巡回経路を作成する
 .PHONY: best-combus-stop-sequences
