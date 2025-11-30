@@ -6,7 +6,7 @@ import pickle
 import time  # ファイル先頭に追加
 from shapely.geometry import shape, Polygon, MultiPolygon
 
-MAX_WALK_DISTANCE_M = 1000  # 徒歩の最大距離[m]
+MAX_WALK_DISTANCE_M = 100000  # 徒歩の最大距離[m]
 
 
 class Mesh:

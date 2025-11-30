@@ -2,8 +2,9 @@ import json
 import requests
 import sys
 import datetime
+import polyline
 
-MAX_WALK_DISTANCE_M = 1000  # 徒歩の最大距離[m]
+MAX_WALK_DISTANCE_M = 100000  # 徒歩の最大距離[m]
 
 
 def load_spots(json_path):
@@ -30,10 +31,18 @@ def load_refpoints(json_path):
     return data.get("ref-points", [])
 
 
+def merge_geometry(geometry_list: list[str]) -> str:
+    coords = []
+    for geom in geometry_list:
+        coords.extend(polyline.decode(geom))
+    merged_geom = polyline.encode(coords)
+    return merged_geom
+
+
 def get_travel_time(from_spot, to_stop, max_walk_distance_m: int):
     """スポットからバス停までの所要時間と経路形状を取得"""
     base_url = "http://localhost:8080/otp/routers/default/plan"
-    
+
     # 現在の日付を取得してMM-DD-YYYYフォーマットに変換
     current_date = datetime.datetime.now().strftime("%m-%d-%Y")
 
@@ -57,9 +66,10 @@ def get_travel_time(from_spot, to_stop, max_walk_distance_m: int):
             itinerary = data["plan"]["itineraries"][0]
             duration_m = itinerary["duration"] / 60  # 秒から分に変換
             walk_distance_m = itinerary["walkDistance"]
-            geometry = itinerary["legs"][0]["legGeometry"][
-                "points"
-            ]  # Google Polyline形式
+            # geometry = itinerary["legs"][0]["legGeometry"][
+            #     "points"
+            # ]  # Google Polyline形式
+            geometry_list = []
 
             # 区間情報の取得
             sections = []
@@ -78,8 +88,11 @@ def get_travel_time(from_spot, to_stop, max_walk_distance_m: int):
                     },
                     "duration_m": int(leg["duration"] / 60),  # 秒から分に変換
                     "distance_m": int(leg["distance"]),
+                    "geometry": leg["legGeometry"]["points"],
                 }
                 sections.append(section)
+                geometry_list.append(leg["legGeometry"]["points"])
+            geometry = merge_geometry(geometry_list)
 
             return int(duration_m), int(walk_distance_m), geometry, sections
         return None, None, None, None
@@ -145,7 +158,7 @@ def main(
     write_json(output_dir, "spot_to_stops", spots_to_stops)
 
     # spots to refpointsは徒歩距離が上限を超えることを許容する
-    spots_to_refpoints = execute(spots, refpoints, MAX_WALK_DISTANCE_M * 1000)
+    spots_to_refpoints = execute(spots, refpoints, MAX_WALK_DISTANCE_M)
     write_json(output_dir, "spot_to_refpoints", spots_to_refpoints)
 
     stops_to_refpoints = execute(stops, refpoints, MAX_WALK_DISTANCE_M)
