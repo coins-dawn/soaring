@@ -6,11 +6,22 @@ download:
 # 0.0.0.0:8080でotpサーバを起動
 .PHONY: otp
 otp:
-	java -Xmx3G -jar soaring/otp-1.5.0-shaded.jar --build ./work/input --inMemory
+	java -Xmx8G -jar soaring/otp-1.5.0-shaded.jar --build ./work/input --inMemory
 
 # コンバートを通しで実行する
 .PHONY: convert-all
-convert-all: select-spots filter-mesh area-search car-search ptrans-search
+convert-all: filter-mesh select-spots area-search car-search ptrans-search
+
+# メッシュにフィルタをかける
+.PHONY: filter-mesh
+filter-mesh:
+	mkdir -p work/output/archive/
+	cp static/population-mesh.json work/input
+	cp static/target_region.json work/input
+	python soaring/filter_mesh.py \
+		work/input/population-mesh.json \
+		work/input/target_region.json \
+		work/output/archive/mesh.json
 
 # スポット（コミュニティバスのバス停、ref-point）を選定する
 .PHONY: select-spots
@@ -20,18 +31,9 @@ select-spots:
 	python soaring/select_bus_stop.py work/output/archive/combus_stops.json
 	python soaring/select_ref_points.py \
 		work/input/target_region.json \
+		work/output/archive/mesh.json \
 		work/output/archive/ref_points.json \
 		work/output/ref_points.kml \
-
-# メッシュにフィルタをかける
-.PHONY: filter-mesh
-filter-mesh:
-	cp static/population-mesh.json work/input
-	cp static/target_region.json work/input
-	python soaring/filter_mesh.py \
-		work/input/population-mesh.json \
-		work/input/target_region.json \
-		work/output/archive/mesh.json
 
 # 到達圏探索を行いgeojsonを生成
 .PHONY: area-search

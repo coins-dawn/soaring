@@ -1,5 +1,6 @@
 import sys
 import json
+import pickle
 
 
 def read_json(file_path: str, key_str: str) -> list[dict]:
@@ -35,9 +36,9 @@ def main(
     for elem in merged_list:
         from_key = elem["from"]
         to_key = elem["to"]
-        file_path = output_route_dir_path + f"/{from_key}_{to_key}.json"
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(elem, f, ensure_ascii=False, indent=4)
+        file_path = output_route_dir_path + f"/{from_key}_{to_key}.bin"
+        with open(file_path, "wb") as f:
+            pickle.dump(elem, f)
 
 
 if __name__ == "__main__":

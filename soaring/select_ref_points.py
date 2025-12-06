@@ -2,10 +2,11 @@ import sys
 import os
 import json
 from typing import Tuple
+from shapely.geometry import Point, Polygon
 
 # 格子の分割数
-DIV_NUM_VERTICAL = 50  # 縦方向の分割数
-DIV_NUM_HORIZONTAL = 50  # 横方向の分割数
+DIV_NUM_VERTICAL = 40  # 縦方向の分割数
+DIV_NUM_HORIZONTAL = 40  # 横方向の分割数
 
 # KML用ライブラリの読み込み（なければKML出力をスキップ）
 try:
@@ -34,6 +35,34 @@ def generate_grid_points(
             points.append((lat, lon))
 
     return points
+
+
+def read_mesh_file(file_path: str) -> list:
+    """メッシュファイルを読み込む"""
+    with open(file_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return data.get("mesh", [])
+
+
+def filter_points_in_mesh(points: list, mesh_list: list) -> list:
+    """メッシュの中に含まれる点のみを返す"""
+    # メッシュのポリゴンをshapelyオブジェクトに変換
+    mesh_polygons = []
+    for mesh in mesh_list:
+        coords = mesh["geometry"]["coordinates"][0]
+        polygon = Polygon(coords)
+        mesh_polygons.append(polygon)
+    
+    # 各点がいずれかのメッシュに含まれるかチェック
+    filtered_points = []
+    for lat, lon in points:
+        point = Point(lon, lat)
+        for polygon in mesh_polygons:
+            if polygon.contains(point):
+                filtered_points.append((lat, lon))
+                break
+    
+    return filtered_points
 
 
 def write_kml(output_path: str, points: list):
@@ -69,8 +98,9 @@ def write_json(output_path: str, points: list):
 
 def main():
     input_target_region_file = sys.argv[1]
-    output_path = sys.argv[2]
-    output_kml_path = sys.argv[3]
+    input_mesh_file = sys.argv[2]
+    output_path = sys.argv[3]
+    output_kml_path = sys.argv[4]
 
     try:
         # 座標のパース
@@ -82,14 +112,22 @@ def main():
 
         # 格子点の生成
         points = generate_grid_points(sw_lon, sw_lat, ne_lon, ne_lat)
+        print(f"Generated {len(points)} grid points")
+
+        # メッシュファイルの読み込み
+        mesh_list = read_mesh_file(input_mesh_file)
+        print(f"Loaded {len(mesh_list)} meshes")
+
+        # メッシュに含まれる点のみをフィルタリング
+        filtered_points = filter_points_in_mesh(points, mesh_list)
+        print(f"Filtered to {len(filtered_points)} points within meshes")
 
         # JSON出力
-        write_json(output_path, points)
-        print(f"Generated {len(points)} points")
+        write_json(output_path, filtered_points)
         print(f"JSON output written to: {output_path}")
 
         # KML出力（可能なら）
-        write_kml(output_kml_path, points)
+        write_kml(output_kml_path, filtered_points)
 
     except Exception as e:
         print(f"Error: {e}")
