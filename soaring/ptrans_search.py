@@ -3,6 +3,9 @@ import requests
 import sys
 import datetime
 import polyline
+import concurrent.futures
+import threading
+import os
 
 MAX_WALK_DISTANCE_M = 100000  # 徒歩の最大距離[m]
 
@@ -102,38 +105,59 @@ def get_travel_time(from_spot, to_stop, max_walk_distance_m: int):
         return None, None, None, None
 
 
+def _process_pair(args):
+    spot, stop, max_walk_distance_m = args
+    duration_m, walk_distance_m, geometry, sections = get_travel_time(
+        spot, stop, max_walk_distance_m
+    )
+    if duration_m is None:
+        return None
+    return {
+        "from": spot["id"],
+        "to": stop["id"],
+        "duration_m": duration_m,
+        "walk_distance_m": walk_distance_m,
+        "geometry": geometry,
+        "sections": sections,
+    }
+
+
 def execute(elem_list_1: list, elem_list_2: list, max_walk_distance_m: int):
     """
     与えられたリストの掛け合わせの数だけ公共交通探索を行う。
+    並列実行でスループットを向上させる。
     """
     routes = []
     total_pairs = len(elem_list_1) * len(elem_list_2)
-    current_pair = 0
-    last_percentage = -1
-    for spot in elem_list_1:
-        for stop in elem_list_2:
-            # 進捗を出力
-            current_pair += 1
-            current_percentage = int((current_pair / total_pairs) * 100)
-            if current_percentage > last_percentage:
-                print(f"Progress: {current_percentage}%")
-                last_percentage = current_percentage
+    if total_pairs == 0:
+        return routes
 
-            # 本処理
-            duration_m, walk_distance_m, geometry, sections = get_travel_time(
-                spot, stop, max_walk_distance_m
-            )
-            if duration_m is not None:
-                routes.append(
-                    {
-                        "from": spot["id"],
-                        "to": stop["id"],
-                        "duration_m": duration_m,
-                        "walk_distance_m": walk_distance_m,
-                        "geometry": geometry,
-                        "sections": sections,
-                    }
-                )
+    pairs_iter = (
+        (spot, stop, max_walk_distance_m) for spot in elem_list_1 for stop in elem_list_2
+    )
+
+    processed = 0
+    last_percentage = -1
+    lock = threading.Lock()
+
+    max_workers = min(32, (os.cpu_count() or 4) * 5)  # I/O主体なのでスレッド数を多めに
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(_process_pair, args) for args in pairs_iter]
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if result is not None:
+                routes.append(result)
+
+            with lock:
+                processed += 1
+                current_percentage = int((processed / total_pairs) * 100)
+                if current_percentage > last_percentage:
+                    print(f"Progress: {current_percentage}%")
+                    last_percentage = current_percentage
+
+    if last_percentage < 100:
+        print("Progress: 100%")
+
     return routes
 
 
@@ -157,12 +181,12 @@ def main(
     spots_to_stops = execute(spots, stops, MAX_WALK_DISTANCE_M)
     write_json(output_dir, "spot_to_stops", spots_to_stops)
 
-    # spots to refpointsは徒歩距離が上限を超えることを許容する
-    spots_to_refpoints = execute(spots, refpoints, MAX_WALK_DISTANCE_M)
-    write_json(output_dir, "spot_to_refpoints", spots_to_refpoints)
+    # # spots to refpointsは徒歩距離が上限を超えることを許容する
+    # spots_to_refpoints = execute(spots, refpoints, MAX_WALK_DISTANCE_M)
+    # write_json(output_dir, "spot_to_refpoints", spots_to_refpoints)
 
-    stops_to_refpoints = execute(stops, refpoints, MAX_WALK_DISTANCE_M)
-    write_json(output_dir, "stop_to_refpoints", stops_to_refpoints)
+    # stops_to_refpoints = execute(stops, refpoints, MAX_WALK_DISTANCE_M)
+    # write_json(output_dir, "stop_to_refpoints", stops_to_refpoints)
 
 
 if __name__ == "__main__":
