@@ -6,11 +6,22 @@ download:
 # 0.0.0.0:8080でotpサーバを起動
 .PHONY: otp
 otp:
-	java -Xmx3G -jar soaring/otp-1.5.0-shaded.jar --build ./work/input --inMemory
+	java -Xmx8G -jar soaring/otp-1.5.0-shaded.jar --build ./work/input --inMemory
 
 # コンバートを通しで実行する
 .PHONY: convert-all
-convert-all: select-spots filter-mesh area-search car-search ptrans-search best-combus-stop-sequences archive
+convert-all: filter-mesh select-spots area-search car-search ptrans-search
+
+# メッシュにフィルタをかける
+.PHONY: filter-mesh
+filter-mesh:
+	mkdir -p work/output/archive/
+	cp static/population-mesh.json work/input
+	cp static/target_region.json work/input
+	python soaring/filter_mesh.py \
+		work/input/population-mesh.json \
+		work/input/target_region.json \
+		work/output/archive/mesh.json
 
 # スポット（コミュニティバスのバス停、ref-point）を選定する
 .PHONY: select-spots
@@ -20,18 +31,9 @@ select-spots:
 	python soaring/select_bus_stop.py work/output/archive/combus_stops.json
 	python soaring/select_ref_points.py \
 		work/input/target_region.json \
-		work/output/archive/select_ref_points.csv \
-		work/output/select_ref_points.kml \
-
-# メッシュにフィルタをかける
-.PHONY: filter-mesh
-filter-mesh:
-	cp static/population-mesh.json work/input
-	cp static/target_region.json work/input
-	python soaring/filter_mesh.py \
-		work/input/population-mesh.json \
-		work/input/target_region.json \
-		work/output/archive/mesh.json
+		work/output/archive/mesh.json \
+		work/output/archive/ref_points.json \
+		work/output/ref_points.kml \
 
 # 到達圏探索を行いgeojsonを生成
 .PHONY: area-search
@@ -55,11 +57,18 @@ car-search:
 # 公共交通探索を行いスポット->バス停の経路を計算
 .PHONY: ptrans-search
 ptrans-search:
-	mkdir -p work/output/archive/
+	mkdir -p work/output/archive/route
 	python soaring/ptrans_search.py \
 		work/input/toyama_spot_list.json \
 		work/output/archive/combus_stops.json \
-		work/output/archive/
+		work/output/archive/ref_points.json \
+		work/output/
+	python soaring/edit_routes.py \
+		work/output/spot_to_refpoints.json \
+		work/output/spot_to_stops.json \
+		work/output/stop_to_refpoints.json \
+		work/output/archive/all_routes.csv \
+		work/output/archive/route
 
 # 最適なコミュニティバス巡回経路を作成する
 .PHONY: best-combus-stop-sequences
