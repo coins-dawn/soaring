@@ -10,7 +10,7 @@ otp:
 
 # コンバートを通しで実行する
 .PHONY: convert-all
-convert-all: filter-mesh select-spots area-search car-search ptrans-search
+convert-all: filter-mesh select-spots area-search car-search ptrans-search archive
 
 # メッシュにフィルタをかける
 .PHONY: filter-mesh
@@ -69,15 +69,6 @@ ptrans-search:
 		work/output/stop_to_refpoints.json \
 		work/output/archive/all_routes.csv \
 		work/output/archive/route
-
-# 最適なコミュニティバス巡回経路を作成する
-.PHONY: best-combus-stop-sequences
-best-combus-stop-sequences:
-	python soaring/best_combus_stop_sequences.py \
-		work/output/archive/combus_stops.json \
-		work/output/archive/combus_routes.json \
-		work/input/toyama_spot_list.json \
-		work/output/archive/best_combus_stop_sequences.json
 
 # 生成されたファイルたちをアーカイブする
 .PHONY: archive
