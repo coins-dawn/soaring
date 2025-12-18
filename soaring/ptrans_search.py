@@ -183,7 +183,6 @@ def main(
     spots_to_stops = execute(spots, stops, MAX_WALK_DISTANCE_M)
     write_json(output_dir, "spot_to_stops", spots_to_stops)
 
-    # spots to refpointsは徒歩距離が上限を超えることを許容する
     spots_to_refpoints = execute(spots, refpoints, MAX_WALK_DISTANCE_M)
     write_json(output_dir, "spot_to_refpoints", spots_to_refpoints)
 
