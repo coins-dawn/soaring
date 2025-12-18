@@ -133,7 +133,9 @@ def execute(elem_list_1: list, elem_list_2: list, max_walk_distance_m: int):
         return routes
 
     pairs_iter = (
-        (spot, stop, max_walk_distance_m) for spot in elem_list_1 for stop in elem_list_2
+        (spot, stop, max_walk_distance_m)
+        for spot in elem_list_1
+        for stop in elem_list_2
     )
 
     processed = 0

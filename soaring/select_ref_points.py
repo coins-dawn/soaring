@@ -52,7 +52,7 @@ def filter_points_in_mesh(points: list, mesh_list: list) -> list:
         coords = mesh["geometry"]["coordinates"][0]
         polygon = Polygon(coords)
         mesh_polygons.append(polygon)
-    
+
     # 各点がいずれかのメッシュに含まれるかチェック
     filtered_points = []
     for lat, lon in points:
@@ -61,7 +61,7 @@ def filter_points_in_mesh(points: list, mesh_list: list) -> list:
             if polygon.contains(point):
                 filtered_points.append((lat, lon))
                 break
-    
+
     return filtered_points
 
 

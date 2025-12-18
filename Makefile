@@ -10,7 +10,7 @@ otp:
 
 # コンバートを通しで実行する
 .PHONY: convert-all
-convert-all: filter-mesh select-spots area-search car-search ptrans-search archive
+convert-all: filter-mesh select-spots car-search ptrans-search area-search archive
 
 # メッシュにフィルタをかける
 .PHONY: filter-mesh
@@ -35,19 +35,6 @@ select-spots:
 		work/output/archive/ref_points.json \
 		work/output/ref_points.kml \
 
-# 到達圏探索を行いgeojsonを生成
-.PHONY: area-search
-area-search:
-	cp static/toyama_spot_list.json work/input/toyama_spot_list.json
-	mkdir -p work/output/archive/geojson work/output/geojson_txt
-	python soaring/area_search.py \
-		work/output/archive/combus_stops.json \
-		work/input/toyama_spot_list.json \
-		work/output/archive/mesh.json \
-		work/output/archive/geojson \
-		work/output/geojson_txt
-	find work/output/archive/geojson/ -type f -printf "%f\n" > work/output/archive/all_geojsons.txt
-
 # 車経路探索を行いコミュニティバスの経路を計算
 .PHONY: car-search
 car-search:
@@ -69,6 +56,19 @@ ptrans-search:
 		work/output/stop_to_refpoints.json \
 		work/output/archive/all_routes.csv \
 		work/output/archive/route
+
+# 到達圏探索を行いgeojsonを生成
+.PHONY: area-search
+area-search:
+	cp static/toyama_spot_list.json work/input/toyama_spot_list.json
+	mkdir -p work/output/archive/geojson work/output/geojson_txt
+	python soaring/area_search.py \
+		work/output/archive/combus_stops.json \
+		work/input/toyama_spot_list.json \
+		work/output/archive/mesh.json \
+		work/output/archive/geojson \
+		work/output/geojson_txt
+	find work/output/archive/geojson/ -type f -printf "%f\n" > work/output/archive/all_geojsons.txt
 
 # 生成されたファイルたちをアーカイブする
 .PHONY: archive
