@@ -23,6 +23,16 @@ filter-mesh:
 		work/input/target_region.json \
 		work/output/archive/mesh.json
 
+.PHONY: generate-mesh
+generate-mesh:
+	mkdir -p work/output/archive/
+	cp static/target_region.json work/input
+	python soaring/generate_mesh.py \
+		work/input/target_region.json \
+		work/input/tblT001102Q06.txt \
+		work/output/archive/mesh.json \
+		work/output/mesh.kml
+
 # スポット（コミュニティバスのバス停、ref-point）を選定する
 .PHONY: select-spots
 select-spots:
