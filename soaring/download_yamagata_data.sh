@@ -20,6 +20,19 @@ curl -L -o "$MESH_FILE" "$MESH_URL"
 unzip -o "$MESH_FILE" -d "$DSTDIR"
 
 ### OSM ###
-
+curl -L https://download.geofabrik.de/asia/japan/tohoku-latest.osm.pbf -o $DSTDIR/tohoku-latest.osm.pbf
+docker run --rm \
+  -v "$(pwd):/data" \
+  custom-osmium \
+  extract \
+  --bbox=$SOUTH_WEST,$NORTH_EAST \
+  -o $DSTDIR/tohoku-latest-filtered.osm.pbf \
+  $DSTDIR/tohoku-latest.osm.pbf
+rm $DSTDIR/tohoku-latest.osm.pbf
 
 ### GTFS ###
+# 山形市
+curl -L https://api.gtfs-data.jp/v2/organizations/yamagata-yamagatacity/feeds/YamagataCity/files/feed.zip?rid=current -o $DSTDIR/yamagata_city-gtfs.zip
+
+# 山交バス
+curl -L https://api.gtfs-data.jp/v2/organizations/yamakobus/feeds/YAMAKOBUS/files/feed.zip?rid=current -o $DSTDIR/yamakobus-gtfs.zip
