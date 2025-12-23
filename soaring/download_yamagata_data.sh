@@ -1,0 +1,25 @@
+#!/bin/bash
+
+set -eux
+
+DSTDIR="$1"
+TARGET_REGION_FILE="$2"
+
+SOUTH_WEST=$(cat $TARGET_REGION_FILE | jq -r '."south-west" | [.lon, .lat] | join(",")')
+NORTH_EAST=$(cat $TARGET_REGION_FILE | jq -r '."north-east" | [.lon, .lat] | join(",")')
+
+mkdir -p $DSTDIR
+rm -rf $DSTDIR/*
+
+### MESH ###
+# e-statから山形県のメッシュデータをダウンロード
+MESH_URL="https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001102&code=06&downloadType=2"
+MESH_FILE="$DSTDIR/mesh_yamagata.zip"
+
+curl -L -o "$MESH_FILE" "$MESH_URL"
+unzip -o "$MESH_FILE" -d "$DSTDIR"
+
+### OSM ###
+
+
+### GTFS ###
