@@ -7,7 +7,7 @@ import concurrent.futures
 import threading
 import os
 
-MAX_WALK_DISTANCE_M = 100000  # 徒歩の最大距離[m]
+MAX_WALK_DISTANCE_M = 1000  # 徒歩の最大距離[m]
 
 
 def load_spots(json_path):
@@ -183,7 +183,7 @@ def main(
     spots_to_stops = execute(spots, stops, MAX_WALK_DISTANCE_M)
     write_json(output_dir, "spot_to_stops", spots_to_stops)
 
-    spots_to_refpoints = execute(spots, refpoints, MAX_WALK_DISTANCE_M)
+    spots_to_refpoints = execute(spots, refpoints, MAX_WALK_DISTANCE_M * 100)
     write_json(output_dir, "spot_to_refpoints", spots_to_refpoints)
 
     stops_to_refpoints = execute(stops, refpoints, MAX_WALK_DISTANCE_M)
