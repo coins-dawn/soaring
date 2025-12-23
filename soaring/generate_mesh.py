@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Tuple
 import xml.etree.ElementTree as ET
+import math
 
 
 def mesh250m_to_polygon(mesh_code: str) -> Tuple[float, float, float, float, List[List[float]]]:
@@ -81,24 +82,83 @@ def row_to_population(row: List[str]) -> int:
     return 0
 
 
+def rgba_to_kml(a: int, r: int, g: int, b: int) -> str:
+    """RGBA(0-255) を KML の aabbggrr 文字列に変換"""
+    return f"{a:02x}{b:02x}{g:02x}{r:02x}"
+
+
+def lerp(a: float, b: float, t: float) -> float:
+    return a + (b - a) * t
+
+
+def gradient_color(t: float) -> str:
+    """
+    t in [0,1] を青→シアン→緑→黄→赤に線形補間。
+    返り値は (r, g, b) のタプル。
+    """
+    stops = [
+        (0.00, (0, 0, 255)),     # blue
+        (0.25, (0, 255, 255)),   # cyan
+        (0.50, (0, 255, 0)),     # green
+        (0.75, (255, 255, 0)),   # yellow
+        (1.00, (255, 0, 0)),     # red
+    ]
+    t = max(0.0, min(1.0, t))
+    for i in range(len(stops) - 1):
+        t0, c0 = stops[i]
+        t1, c1 = stops[i + 1]
+        if t <= t1:
+            local_t = (t - t0) / (t1 - t0) if t1 != t0 else 0
+            r = int(round(lerp(c0[0], c1[0], local_t)))
+            g = int(round(lerp(c0[1], c1[1], local_t)))
+            b = int(round(lerp(c0[2], c1[2], local_t)))
+            return (r, g, b)
+    return stops[-1][1]
+
+
 def write_kml(meshes: List[Dict], out_path: Path) -> None:
+    # 半透明 (約50%) のアルファ
+    alpha = 0x7F
+
+    # 人口の最小・最大を取得
+    pops = [m["population"] for m in meshes] if meshes else [0, 0]
+    p_min = min(pops)
+    p_max = max(pops)
+    span = (p_max - p_min) if (p_max - p_min) > 0 else 1.0
+
     kml = ET.Element("kml", xmlns="http://www.opengis.net/kml/2.2")
     doc = ET.SubElement(kml, "Document")
-    for m in meshes:
+
+    for idx, m in enumerate(meshes):
+        t = (m["population"] - p_min) / span
+        r, g, b = gradient_color(t)
+        poly_color = rgba_to_kml(alpha, r, g, b)
+
         pm = ET.SubElement(doc, "Placemark")
         ET.SubElement(pm, "name").text = m["mesh_code"]
         ET.SubElement(pm, "description").text = f"population: {m['population']}"
+
+        style = ET.SubElement(pm, "Style")
+        line = ET.SubElement(style, "LineStyle")
+        ET.SubElement(line, "color").text = rgba_to_kml(0xFF, 0, 0, 0)  # 黒の枠線
+        ET.SubElement(line, "width").text = "1"
+
+        polystyle = ET.SubElement(style, "PolyStyle")
+        ET.SubElement(polystyle, "color").text = poly_color
+        ET.SubElement(polystyle, "fill").text = "1"
+        ET.SubElement(polystyle, "outline").text = "1"
+
         polygon = ET.SubElement(pm, "Polygon")
         ET.SubElement(polygon, "tessellate").text = "1"
         outer = ET.SubElement(polygon, "outerBoundaryIs")
         lr = ET.SubElement(outer, "LinearRing")
         coords = ET.SubElement(lr, "coordinates")
-        # KMLは "lon,lat,0" の順で、最終点をクローズする
         ring = m["geometry"]["coordinates"][0]
         if ring[0] != ring[-1]:
             ring = ring + [ring[0]]
         coord_lines = [f"{lon},{lat},0" for lon, lat in ring]
         coords.text = " ".join(coord_lines)
+
     tree = ET.ElementTree(kml)
     tree.write(out_path, encoding="utf-8", xml_declaration=True)
 

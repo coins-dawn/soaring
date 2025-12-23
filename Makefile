@@ -1,7 +1,8 @@
-# 富山県のOTP用データをダウンロード
+TARGET_AREA=yamagata
+
 .PHONY: download
 download:
-	./soaring/download_toyama_data.sh work/input/ static/target_region.json
+	./soaring/download_$(TARGET_AREA)_data.sh work/input/ static/target_region_$(TARGET_AREA).json
 
 # 0.0.0.0:8080でotpサーバを起動
 .PHONY: otp
@@ -12,23 +13,24 @@ otp:
 .PHONY: convert-all
 convert-all: filter-mesh select-spots car-search ptrans-search area-search archive
 
-# メッシュにフィルタをかける
-.PHONY: filter-mesh
-filter-mesh:
-	mkdir -p work/output/archive/
-	cp static/population-mesh.json work/input
-	cp static/target_region.json work/input
-	python soaring/filter_mesh.py \
-		work/input/population-mesh.json \
-		work/input/target_region.json \
-		work/output/archive/mesh.json
+# # メッシュにフィルタをかける
+# .PHONY: filter-mesh
+# filter-mesh:
+# 	mkdir -p work/output/archive/
+# 	cp static/population-mesh.json work/input
+# 	cp static/target_region.json work/input
+# 	python soaring/filter_mesh.py \
+# 		work/input/population_mesh_toyama.json \
+# 		work/input/target_region.json \
+# 		work/output/archive/mesh.json
 
+# e-statから取得した人口メッシュからメッシュ情報を生成
 .PHONY: generate-mesh
 generate-mesh:
 	mkdir -p work/output/archive/
-	cp static/target_region.json work/input
+	cp static/target_region_$(TARGET_AREA).json work/output/archive/target_region.json
 	python soaring/generate_mesh.py \
-		work/input/target_region.json \
+		work/output/archive/target_region.json \
 		work/input/tblT001102Q06.txt \
 		work/output/archive/mesh.json \
 		work/output/mesh.kml
@@ -37,13 +39,16 @@ generate-mesh:
 .PHONY: select-spots
 select-spots:
 	mkdir -p work/output/archive/
-	cp static/target_region.json work/input
-	python soaring/select_bus_stop.py work/output/archive/combus_stops.json
+	cp static/target_region_$(TARGET_AREA).json work/output/archive/target_region.json
+	python soaring/select_bus_stop.py \
+		work/output/archive/target_region.json \
+		work/output/archive/combus_stops.json \
+		work/output/combus_stops.kml
 	python soaring/select_ref_points.py \
-		work/input/target_region.json \
+		work/output/archive/target_region.json \
 		work/output/archive/mesh.json \
 		work/output/archive/ref_points.json \
-		work/output/ref_points.kml \
+		work/output/ref_points.kml
 
 # 車経路探索を行いコミュニティバスの経路を計算
 .PHONY: car-search
