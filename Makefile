@@ -42,6 +42,7 @@ select-spots:
 	cp static/target_region_$(TARGET_AREA).json work/output/archive/target_region.json
 	python soaring/select_bus_stop.py \
 		work/output/archive/target_region.json \
+		work/output/archive/mesh.json \
 		work/output/archive/combus_stops.json \
 		work/output/combus_stops.kml
 	python soaring/select_ref_points.py \

@@ -3,6 +3,7 @@ import random
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from typing import List, Dict, Any
 
 
 def load_region(path: Path):
@@ -11,6 +12,25 @@ def load_region(path: Path):
     sw = data["south-west"]
     ne = data["north-east"]
     return float(sw["lat"]), float(sw["lon"]), float(ne["lat"]), float(ne["lon"])
+
+
+def load_meshes(path: Path) -> List[Dict[str, Any]]:
+    with path.open(encoding="utf-8") as f:
+        data = json.load(f)
+    meshes = data.get("mesh", [])
+    # population > 0 のみ採用
+    return [m for m in meshes if m.get("population", 0) > 0]
+
+
+def random_point_in_mesh(mesh: Dict[str, Any]) -> (float, float):
+    coords = mesh["geometry"]["coordinates"][0]
+    lons = [p[0] for p in coords]
+    lats = [p[1] for p in coords]
+    min_lon, max_lon = min(lons), max(lons)
+    min_lat, max_lat = min(lats), max(lats)
+    lon = random.uniform(min_lon, max_lon)
+    lat = random.uniform(min_lat, max_lat)
+    return lat, lon
 
 
 def write_kml(stops, out_path: Path) -> None:
@@ -27,29 +47,38 @@ def write_kml(stops, out_path: Path) -> None:
 
 def main():
     # コマンドライン引数の確認
-    if len(sys.argv) < 4:
-        print("使用方法: python select_bus_stop.py <region.json> <出力JSON> <出力KML>", file=sys.stderr)
+    if len(sys.argv) < 5:
+        print("使用方法: python select_bus_stop.py <region.json> <mesh.json> <出力JSON> <出力KML>", file=sys.stderr)
         sys.exit(1)
 
     region_path = Path(sys.argv[1])
-    output_json_path = Path(sys.argv[2])
-    output_kml_path = Path(sys.argv[3])
+    mesh_path = Path(sys.argv[2])
+    output_json_path = Path(sys.argv[3])
+    output_kml_path = Path(sys.argv[4])
 
     # 乱数シード設定（再現性）
     random.seed(42)
 
-    # 範囲を読み込み
-    sw_lat, sw_lon, ne_lat, ne_lon = load_region(region_path)
+    # 範囲読み込み（必要に応じて利用）
+    load_region(region_path)
 
-    # 緯度・経度の最小値と最大値を取得
-    min_lat, max_lat = sw_lat, ne_lat
-    min_lon, max_lon = sw_lon, ne_lon
+    # メッシュ読み込み（population > 0 のみ）
+    meshes = load_meshes(mesh_path)
+    if not meshes:
+        print("population > 0 のメッシュが存在しません。", file=sys.stderr)
+        sys.exit(1)
 
-    # ランダムに50地点生成
+    weights = [m["population"] for m in meshes]
+    total = sum(weights)
+    if total <= 0:
+        print("population 合計が 0 です。", file=sys.stderr)
+        sys.exit(1)
+
+    # 重みに比例してメッシュを選び、その内部にバス停を配置
     stops = []
     for i in range(1, 51):
-        lat = random.uniform(min_lat, max_lat)
-        lon = random.uniform(min_lon, max_lon)
+        mesh = random.choices(meshes, weights=weights, k=1)[0]
+        lat, lon = random_point_in_mesh(mesh)
         stops.append(
             {"id": f"comstop{i}", "name": f"バス停{i}", "lat": lat, "lon": lon}
         )
