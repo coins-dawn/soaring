@@ -5,6 +5,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Dict, Any
 
+BUS_COUNT = 100
+
 
 def load_region(path: Path):
     with path.open(encoding="utf-8") as f:
@@ -75,9 +77,26 @@ def main():
         sys.exit(1)
 
     # 重みに比例してメッシュを選び、その内部にバス停を配置
+    # 一つのメッシュには最大一つのバス停を配置
     stops = []
-    for i in range(1, 51):
-        mesh = random.choices(meshes, weights=weights, k=1)[0]
+    used_mesh_indices = set()
+    available_meshes = list(range(len(meshes)))
+    
+    for i in range(1, BUS_COUNT+1):
+        # まだ使用されていないメッシュのみを候補とする
+        candidate_indices = [idx for idx in available_meshes if idx not in used_mesh_indices]
+        
+        if not candidate_indices:
+            print(f"⚠️ {i-1}個のバス停を配置しました（メッシュが不足）", file=sys.stderr)
+            break
+        
+        # 候補メッシュから重みに応じて選択
+        candidate_weights = [weights[idx] for idx in candidate_indices]
+        selected_idx = random.choices(candidate_indices, weights=candidate_weights, k=1)[0]
+        
+        mesh = meshes[selected_idx]
+        used_mesh_indices.add(selected_idx)
+        
         lat, lon = random_point_in_mesh(mesh)
         stops.append(
             {"id": f"comstop{i}", "name": f"バス停{i}", "lat": lat, "lon": lon}
