@@ -148,12 +148,8 @@ def exec_single_spot(
     time_limits = [i * 60 * 5 for i in range(1, time_trial_num)]
 
     # 徒歩距離リストの作成
-    if "comstop" in spot["id"]:
-        walk_distance_trial_num = 21
-        walk_distance_limits = [i * 50 for i in range(1, walk_distance_trial_num)]
-    else:
-        # スポットの場合は常に徒歩距離上限が1000m
-        walk_distance_limits = [1000]
+    walk_distance_trial_num = 21
+    walk_distance_limits = [i * 50 for i in range(1, walk_distance_trial_num)]
 
     all_geojson_list = []
     for walk_distance_limit in walk_distance_limits:
