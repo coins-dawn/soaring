@@ -4,9 +4,12 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Dict, Any
+import math
 
 BUS_COUNT = 100
 
+# 地球の半径（メートル）
+EARTH_RADIUS = 6371000
 
 def load_region(path: Path):
     with path.open(encoding="utf-8") as f:
@@ -24,6 +27,31 @@ def load_meshes(path: Path) -> List[Dict[str, Any]]:
     return [m for m in meshes if m.get("population", 0) > 0]
 
 
+def load_spots(path: Path) -> List[Dict[str, Any]]:
+    """スポット情報を読み込む"""
+    with path.open(encoding="utf-8") as f:
+        data = json.load(f)
+    
+    spots = []
+    for category, items in data.items():
+        if isinstance(items, list):
+            spots.extend(items)
+    return spots
+
+
+def distance_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """2点間の距離をメートル単位で計算（Haversine公式）"""
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
+    delta_lat = math.radians(lat2 - lat1)
+    delta_lon = math.radians(lon2 - lon1)
+    
+    a = math.sin(delta_lat / 2) ** 2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    
+    return EARTH_RADIUS * c
+
+
 def random_point_in_mesh(mesh: Dict[str, Any]) -> (float, float):
     coords = mesh["geometry"]["coordinates"][0]
     lons = [p[0] for p in coords]
@@ -33,6 +61,22 @@ def random_point_in_mesh(mesh: Dict[str, Any]) -> (float, float):
     lon = random.uniform(min_lon, max_lon)
     lat = random.uniform(min_lat, max_lat)
     return lat, lon
+
+
+def random_point_near_spot(spot: Dict[str, Any], radius: float = 50.0) -> (float, float):
+    """スポット付近にランダムな点を生成（半径radius以内）"""
+    lat = spot["lat"]
+    lon = spot["lon"]
+    
+    # ランダムな距離と角度を生成
+    distance = random.uniform(0, radius)
+    angle = random.uniform(0, 2 * math.pi)
+    
+    # 距離と角度から緯度経度の差分を計算
+    delta_lat = (distance / EARTH_RADIUS) * math.cos(angle) * (180 / math.pi)
+    delta_lon = (distance / EARTH_RADIUS) * math.sin(angle) / math.cos(math.radians(lat)) * (180 / math.pi)
+    
+    return lat + delta_lat, lon + delta_lon
 
 
 def write_kml(stops, out_path: Path) -> None:
@@ -49,14 +93,15 @@ def write_kml(stops, out_path: Path) -> None:
 
 def main():
     # コマンドライン引数の確認
-    if len(sys.argv) < 5:
-        print("使用方法: python select_bus_stop.py <region.json> <mesh.json> <出力JSON> <出力KML>", file=sys.stderr)
+    if len(sys.argv) < 6:
+        print("使用方法: python select_bus_stop.py <region.json> <mesh.json> <spots.json> <出力JSON> <出力KML>", file=sys.stderr)
         sys.exit(1)
 
     region_path = Path(sys.argv[1])
     mesh_path = Path(sys.argv[2])
-    output_json_path = Path(sys.argv[3])
-    output_kml_path = Path(sys.argv[4])
+    spots_path = Path(sys.argv[3])
+    output_json_path = Path(sys.argv[4])
+    output_kml_path = Path(sys.argv[5])
 
     # 乱数シード設定（再現性）
     random.seed(42)
@@ -70,37 +115,44 @@ def main():
         print("population > 0 のメッシュが存在しません。", file=sys.stderr)
         sys.exit(1)
 
-    weights = [m["population"] for m in meshes]
-    total = sum(weights)
-    if total <= 0:
-        print("population 合計が 0 です。", file=sys.stderr)
-        sys.exit(1)
+    # スポット読み込み
+    spots = load_spots(spots_path)
+    print(f"📍 {len(spots)}個のスポットを読み込みました")
 
-    # 重みに比例してメッシュを選び、その内部にバス停を配置
-    # 一つのメッシュには最大一つのバス停を配置
+    # スポット付近にバス停を配置
     stops = []
+    stop_id = 1
+    
+    for spot in spots:
+        lat, lon = random_point_near_spot(spot, radius=50.0)
+        stops.append(
+            {"id": f"comstop{stop_id}", "name": f"バス停{stop_id} ({spot['name']}近く)", "lat": lat, "lon": lon}
+        )
+        stop_id += 1
+
+    # メッシュ内にランダムに追加のバス停を配置
     used_mesh_indices = set()
     available_meshes = list(range(len(meshes)))
     
-    for i in range(1, BUS_COUNT+1):
+    for i in range(BUS_COUNT):
         # まだ使用されていないメッシュのみを候補とする
         candidate_indices = [idx for idx in available_meshes if idx not in used_mesh_indices]
         
         if not candidate_indices:
-            print(f"⚠️ {i-1}個のバス停を配置しました（メッシュが不足）", file=sys.stderr)
+            print(f"⚠️ {len(stops)}個のバス停を配置しました（メッシュが不足）", file=sys.stderr)
             break
         
-        # 候補メッシュから重みに応じて選択
-        candidate_weights = [weights[idx] for idx in candidate_indices]
-        selected_idx = random.choices(candidate_indices, weights=candidate_weights, k=1)[0]
+        # 候補メッシュから均等に選択（重み付けなし）
+        selected_idx = random.choice(candidate_indices)
         
         mesh = meshes[selected_idx]
         used_mesh_indices.add(selected_idx)
         
         lat, lon = random_point_in_mesh(mesh)
         stops.append(
-            {"id": f"comstop{i}", "name": f"バス停{i}", "lat": lat, "lon": lon}
+            {"id": f"comstop{stop_id}", "name": f"バス停{stop_id}", "lat": lat, "lon": lon}
         )
+        stop_id += 1
 
     # JSON出力
     output = {"combus-stops": stops}
@@ -110,6 +162,7 @@ def main():
     # KML出力
     write_kml(stops, output_kml_path)
 
+    print(f"✅ 合計{len(stops)}個のバス停を配置")
     print(f"✅ JSON: {output_json_path}")
     print(f"✅ KML : {output_kml_path}")
 
