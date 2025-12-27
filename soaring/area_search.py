@@ -2,11 +2,10 @@ import sys
 import json
 import requests
 import datetime
+import csv
 import pickle
-import time  # ファイル先頭に追加
+import time
 from shapely.geometry import shape, Polygon, MultiPolygon
-
-MAX_WALK_DISTANCE_M = 100000  # 徒歩の最大距離[m]
 
 
 class Mesh:
@@ -21,11 +20,13 @@ class Geojson:
         self,
         id: str,
         time_limit_min: int,
+        walk_distance_m: int,
         geometry: MultiPolygon,
         reachable_mesh_codes: set[str],
     ):
         self.id: str = id
         self.time_limit_min: int = time_limit_min
+        self.walk_distance_m: int = walk_distance_m
         self.geometry: MultiPolygon = geometry
         self.reachable_mesh_codes: set[str] = reachable_mesh_codes
 
@@ -67,7 +68,7 @@ def find_intersecting_meshes(
     return mesh_codes
 
 
-def request_to_otp(spot: dict, time_limits: list) -> dict:
+def request_to_otp(spot: dict, time_limits: list, walk_distance_limit: int) -> dict:
     """Open Trip Plannerで到達圏探索を実行する"""
     lat = spot["lat"]
     lon = spot["lon"]
@@ -82,7 +83,7 @@ def request_to_otp(spot: dict, time_limits: list) -> dict:
         "mode": "WALK,TRANSIT",
         "date": current_date,
         "time": "10:00am",
-        "maxWalkDistance": f"{MAX_WALK_DISTANCE_M}",
+        "maxWalkDistance": f"{walk_distance_limit}",
     }
     url = f"{host}{path}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
     for time_limit in time_limits:
@@ -92,25 +93,26 @@ def request_to_otp(spot: dict, time_limits: list) -> dict:
 
 
 def calc_geojson_list(
-    time_limits: list, time_to_geometry_dict: dict, spot_id: str
+    time_limits: list,
+    time_to_geometry_dict: dict,
+    spot_id: str,
+    walk_distance_limit: int,
 ) -> list[Geojson]:
     """GeoJSONリストを計算する"""
-    prev_geometry = None
     geojson_list = []
     for time_limit in time_limits:
-        geometry = time_to_geometry_dict[time_limit]
-        # ひとつ前と一緒なら出力しない
-        if prev_geometry != None and geometry == prev_geometry:
+        geometry = time_to_geometry_dict.get(time_limit)
+        if not geometry:
             continue
         geojson_list.append(
             Geojson(
                 id=spot_id,
                 time_limit_min=time_limit // 60,
+                walk_distance_m=walk_distance_limit,
                 geometry=geometry,
                 reachable_mesh_codes=set(),  # 一旦空で初期化
             )
         )
-        prev_geometry = geometry
     return geojson_list
 
 
@@ -130,6 +132,7 @@ def calc_and_update_reachable_meshs(
         mesh for mesh in all_mesh_list if mesh.mesh_code in reachable_mesh_code_set
     ]
     for geojson in geojson_list[:-1]:
+        assert geojson.geometry
         reachable_meshes = find_intersecting_meshes(
             shape(geojson.geometry), max_geojson_reachable_mesh_list
         )
@@ -141,26 +144,38 @@ def exec_single_spot(
     spot: dict, all_mesh_list: list[Mesh]
 ) -> tuple[list[Geojson], set[str]]:
     # 時間制限リストの作成
-    initial_time_limit = 10 * 60  # 10分
-    trial_num = 111  # 10分 -> 120分まで1分刻み
-    time_limits = [initial_time_limit + i * 60 for i in range(trial_num)]
+    time_trial_num = 25
+    time_limits = [i * 60 * 5 for i in range(1, time_trial_num)]
 
-    # Open Trip Plannerに問い合わせ
-    response_json = request_to_otp(spot, time_limits)
-    time_to_geometry_dict = {}
-    for i in range(trial_num):
-        feature = response_json["features"][i]
-        geometry = feature["geometry"]
-        time = int(feature["properties"]["time"])
-        time_to_geometry_dict[time] = geometry
+    # 徒歩距離リストの作成
+    walk_distance_trial_num = 21
+    walk_distance_limits = [i * 50 for i in range(1, walk_distance_trial_num)]
 
-    # GeoJSONリストを計算
-    geojson_list = calc_geojson_list(time_limits, time_to_geometry_dict, spot["id"])
-    reachable_mesh_code_set = calc_and_update_reachable_meshs(
-        geojson_list, all_mesh_list
-    )
+    all_geojson_list = []
+    for walk_distance_limit in walk_distance_limits:
+        # Open Trip Plannerに問い合わせ
+        response_json = request_to_otp(spot, time_limits, walk_distance_limit)
+        time_to_geometry_dict = {}
+        for i in range(time_trial_num - 1):
+            # print(f"------{walk_distance_limit}--------")
+            # print(response_json)
+            feature = response_json["features"][i]
+            if not feature["geometry"]:
+                continue
+            geometry = feature["geometry"]
+            time = int(feature["properties"]["time"])
+            time_to_geometry_dict[time] = geometry
 
-    return geojson_list, reachable_mesh_code_set
+        # GeoJSONリストを計算
+        geojson_list = calc_geojson_list(
+            time_limits, time_to_geometry_dict, spot["id"], walk_distance_limit
+        )
+        if not geojson_list:
+            continue
+        calc_and_update_reachable_meshs(geojson_list, all_mesh_list)
+        all_geojson_list.extend(geojson_list)
+
+    return all_geojson_list
 
 
 def write_geojsons(
@@ -176,9 +191,12 @@ def write_geojsons(
             "geometry": geojson.geometry,
         }
         time_limit_min = geojson.time_limit_min
+        walk_distance_m = geojson.walk_distance_m
         id = geojson.id
-        output_path = f"{output_geojson_dir_path}/{id}_{time_limit_min}.bin"
-        output_txt_path = f"{output_geojson_txt_dir_path}/{id}_{time_limit_min}.json"
+        output_path = (
+            f"{output_geojson_dir_path}/{id}_{time_limit_min}_{walk_distance_m}.bin"
+        )
+        output_txt_path = f"{output_geojson_txt_dir_path}/{id}_{time_limit_min}_{walk_distance_m}.json"
         with open(output_path, "wb") as f:
             pickle.dump(feature, f)
         with open(output_txt_path, "w") as f:
@@ -223,7 +241,7 @@ def main(
     geojson_list = []
     total_spots = len(all_spot_list)
     for i, spot in enumerate(all_spot_list, 1):
-        geojson_list_tmp, _ = exec_single_spot(spot, all_mesh_list)
+        geojson_list_tmp = exec_single_spot(spot, all_mesh_list)
         geojson_list.extend(geojson_list_tmp)
         # 進捗を出力
         progress = (i / total_spots) * 100

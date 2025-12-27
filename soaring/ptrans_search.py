@@ -7,7 +7,7 @@ import concurrent.futures
 import threading
 import os
 
-MAX_WALK_DISTANCE_M = 100000  # 徒歩の最大距離[m]
+MAX_WALK_DISTANCE_M = 1000  # 徒歩の最大距離[m]
 
 
 def load_spots(json_path):
@@ -133,7 +133,9 @@ def execute(elem_list_1: list, elem_list_2: list, max_walk_distance_m: int):
         return routes
 
     pairs_iter = (
-        (spot, stop, max_walk_distance_m) for spot in elem_list_1 for stop in elem_list_2
+        (spot, stop, max_walk_distance_m)
+        for spot in elem_list_1
+        for stop in elem_list_2
     )
 
     processed = 0
@@ -181,12 +183,11 @@ def main(
     spots_to_stops = execute(spots, stops, MAX_WALK_DISTANCE_M)
     write_json(output_dir, "spot_to_stops", spots_to_stops)
 
-    # # spots to refpointsは徒歩距離が上限を超えることを許容する
-    # spots_to_refpoints = execute(spots, refpoints, MAX_WALK_DISTANCE_M)
-    # write_json(output_dir, "spot_to_refpoints", spots_to_refpoints)
+    spots_to_refpoints = execute(spots, refpoints, MAX_WALK_DISTANCE_M * 100)
+    write_json(output_dir, "spot_to_refpoints", spots_to_refpoints)
 
-    # stops_to_refpoints = execute(stops, refpoints, MAX_WALK_DISTANCE_M)
-    # write_json(output_dir, "stop_to_refpoints", stops_to_refpoints)
+    stops_to_refpoints = execute(stops, refpoints, MAX_WALK_DISTANCE_M)
+    write_json(output_dir, "stop_to_refpoints", stops_to_refpoints)
 
 
 if __name__ == "__main__":

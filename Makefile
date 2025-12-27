@@ -1,7 +1,9 @@
-# 富山県のOTP用データをダウンロード
+# toyama, yamagata, higashine
+TARGET_AREA=higashine
+
 .PHONY: download
 download:
-	./soaring/download_toyama_data.sh work/input/ static/target_region.json
+	./soaring/download_$(TARGET_AREA)_data.sh work/input/ static/target_region_$(TARGET_AREA).json
 
 # 0.0.0.0:8080でotpサーバを起動
 .PHONY: otp
@@ -10,56 +12,63 @@ otp:
 
 # コンバートを通しで実行する
 .PHONY: convert-all
-convert-all: filter-mesh select-spots area-search car-search ptrans-search
+convert-all: generate-mesh select-spots car-search ptrans-search area-search archive
 
-# メッシュにフィルタをかける
-.PHONY: filter-mesh
-filter-mesh:
+# # メッシュにフィルタをかける
+# .PHONY: filter-mesh
+# filter-mesh:
+# 	mkdir -p work/output/archive/
+# 	cp static/population-mesh.json work/input
+# 	cp static/target_region.json work/input
+# 	python soaring/filter_mesh.py \
+# 		work/input/population_mesh_toyama.json \
+# 		work/input/target_region.json \
+# 		work/output/archive/mesh.json
+
+# e-statから取得した人口メッシュからメッシュ情報を生成
+.PHONY: generate-mesh
+generate-mesh:
 	mkdir -p work/output/archive/
-	cp static/population-mesh.json work/input
-	cp static/target_region.json work/input
-	python soaring/filter_mesh.py \
-		work/input/population-mesh.json \
-		work/input/target_region.json \
-		work/output/archive/mesh.json
+	cp static/target_region_$(TARGET_AREA).json work/output/archive/target_region.json
+	python soaring/generate_mesh.py \
+		work/output/archive/target_region.json \
+		work/input/tblT001102Q06.txt \
+		work/output/archive/mesh.json \
+		work/output/mesh.kml
 
 # スポット（コミュニティバスのバス停、ref-point）を選定する
 .PHONY: select-spots
 select-spots:
 	mkdir -p work/output/archive/
-	cp static/target_region.json work/input
-	python soaring/select_bus_stop.py work/output/archive/combus_stops.json
+	cp static/target_region_$(TARGET_AREA).json work/output/archive/target_region.json
+	cp static/$(TARGET_AREA)_spot_list.json work/output/archive/spot_list.json
+	python soaring/select_bus_stop.py \
+		work/output/archive/target_region.json \
+		work/output/archive/mesh.json \
+		work/output/archive/spot_list.json \
+		work/output/archive/combus_stops.json \
+		work/output/combus_stops.kml
 	python soaring/select_ref_points.py \
-		work/input/target_region.json \
+		work/output/archive/target_region.json \
 		work/output/archive/mesh.json \
 		work/output/archive/ref_points.json \
-		work/output/ref_points.kml \
-
-# 到達圏探索を行いgeojsonを生成
-.PHONY: area-search
-area-search:
-	cp static/toyama_spot_list.json work/input/toyama_spot_list.json
-	mkdir -p work/output/archive/geojson work/output/geojson_txt
-	python soaring/area_search.py \
-		work/output/archive/combus_stops.json \
-		work/input/toyama_spot_list.json \
-		work/output/archive/mesh.json \
-		work/output/archive/geojson \
-		work/output/geojson_txt
-	find work/output/archive/geojson/ -type f -printf "%f\n" > work/output/archive/all_geojsons.txt
+		work/output/ref_points.kml
 
 # 車経路探索を行いコミュニティバスの経路を計算
 .PHONY: car-search
 car-search:
 	mkdir -p work/output/archive/
-	python soaring/car_search.py work/output/archive/combus_stops.json work/output/archive/
+	python soaring/car_search.py \
+		work/output/archive/combus_stops.json \
+		work/output/archive/
 
 # 公共交通探索を行いスポット->バス停の経路を計算
 .PHONY: ptrans-search
 ptrans-search:
 	mkdir -p work/output/archive/route
+	cp static/$(TARGET_AREA)_spot_list.json work/output/archive/spot_list.json
 	python soaring/ptrans_search.py \
-		work/input/toyama_spot_list.json \
+		work/output/archive/spot_list.json \
 		work/output/archive/combus_stops.json \
 		work/output/archive/ref_points.json \
 		work/output/
@@ -70,18 +79,20 @@ ptrans-search:
 		work/output/archive/all_routes.csv \
 		work/output/archive/route
 
-# 最適なコミュニティバス巡回経路を作成する
-.PHONY: best-combus-stop-sequences
-best-combus-stop-sequences:
-	python soaring/best_combus_stop_sequences.py \
+# 到達圏探索を行いgeojsonを生成
+.PHONY: area-search
+area-search:
+	cp static/$(TARGET_AREA)_spot_list.json work/output/archive/spot_list.json
+	mkdir -p work/output/archive/geojson work/output/geojson_txt
+	python soaring/area_search.py \
 		work/output/archive/combus_stops.json \
-		work/output/archive/combus_routes.json \
-		work/input/toyama_spot_list.json \
-		work/output/archive/best_combus_stop_sequences.json
+		work/output/archive/spot_list.json \
+		work/output/archive/mesh.json \
+		work/output/archive/geojson \
+		work/output/geojson_txt
+	find work/output/archive/geojson/ -type f -printf "%f\n" > work/output/archive/all_geojsons.txt
 
 # 生成されたファイルたちをアーカイブする
 .PHONY: archive
 archive:
-	cp static/toyama_spot_list.json work/output/archive/
-	cp static/target_region.json work/output/archive/
 	cd work/output/archive && zip -q -r ../archive.zip ./*
