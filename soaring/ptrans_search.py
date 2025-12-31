@@ -6,6 +6,7 @@ import polyline
 import concurrent.futures
 import threading
 import os
+import time
 
 MAX_WALK_DISTANCE_M = 1000  # 徒歩の最大距離[m]
 
@@ -195,4 +196,14 @@ if __name__ == "__main__":
     input_stops_path = sys.argv[2]
     input_refpoint_path = sys.argv[3]
     output_dir = sys.argv[4]
+    
+    start_time = time.time()
     main(input_spots_path, input_stops_path, input_refpoint_path, output_dir)
+    end_time = time.time()
+    
+    elapsed_time = end_time - start_time
+    hours = int(elapsed_time // 3600)
+    minutes = int((elapsed_time % 3600) // 60)
+    seconds = int(elapsed_time % 60)
+    
+    print(f"\nExecution time: {hours}h {minutes}m {seconds}s")
