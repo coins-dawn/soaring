@@ -7,7 +7,9 @@ import xml.etree.ElementTree as ET
 import math
 
 
-def mesh250m_to_polygon(mesh_code: str) -> Tuple[float, float, float, float, List[List[float]]]:
+def mesh250m_to_polygon(
+    mesh_code: str,
+) -> Tuple[float, float, float, float, List[List[float]]]:
     """
     10桁の第5次メッシュコード（250mメッシュ）から
     南西端緯度・経度、幅・高さ、およびポリゴン座標を返す。
@@ -16,12 +18,12 @@ def mesh250m_to_polygon(mesh_code: str) -> Tuple[float, float, float, float, Lis
         raise ValueError("mesh_code must be a 10-digit numeric string")
 
     # 1次〜3次メッシュの抽出
-    p = int(mesh_code[0:2])    # 緯度 40分単位
-    q = int(mesh_code[2:4])    # 経度 1度単位
-    r = int(mesh_code[4:5])    # 2次メッシュ緯度 5分単位
-    s = int(mesh_code[5:6])    # 2次メッシュ経度 7.5分単位
-    t = int(mesh_code[6:7])    # 3次メッシュ緯度 30秒単位
-    u = int(mesh_code[7:8])    # 3次メッシュ経度 45秒単位
+    p = int(mesh_code[0:2])  # 緯度 40分単位
+    q = int(mesh_code[2:4])  # 経度 1度単位
+    r = int(mesh_code[4:5])  # 2次メッシュ緯度 5分単位
+    s = int(mesh_code[5:6])  # 2次メッシュ経度 7.5分単位
+    t = int(mesh_code[6:7])  # 3次メッシュ緯度 30秒単位
+    u = int(mesh_code[7:8])  # 3次メッシュ経度 45秒単位
 
     # 4次メッシュ (9桁目) と 5次メッシュ (10桁目)
     m4 = int(mesh_code[8])
@@ -31,17 +33,17 @@ def mesh250m_to_polygon(mesh_code: str) -> Tuple[float, float, float, float, Lis
         raise ValueError("4th and 5th mesh digits must be in 1..4")
 
     # 3次メッシュ（1km）までの南西端を計算
-    lat_sw = p * (2/3) + r * (1/12) + t * (1/120)
-    lon_sw = (q + 100) + s * (1/8) + u * (1/80)
+    lat_sw = p * (2 / 3) + r * (1 / 12) + t * (1 / 120)
+    lon_sw = (q + 100) + s * (1 / 8) + u * (1 / 80)
 
     # 4次メッシュ(500m)のオフセット計算
     # 1: 南西, 2: 南東, 3: 北西, 4: 北東
-    lat_offset_4 = (1/240) if m4 > 2 else 0
-    lon_offset_4 = (1/160) if m4 % 2 == 0 else 0
+    lat_offset_4 = (1 / 240) if m4 > 2 else 0
+    lon_offset_4 = (1 / 160) if m4 % 2 == 0 else 0
 
     # 5次メッシュ(250m)のオフセット計算
-    lat_offset_5 = (1/480) if m5 > 2 else 0
-    lon_offset_5 = (1/320) if m5 % 2 == 0 else 0
+    lat_offset_5 = (1 / 480) if m5 > 2 else 0
+    lon_offset_5 = (1 / 320) if m5 % 2 == 0 else 0
 
     # 最終的な南西端
     sw_lat = lat_sw + lat_offset_4 + lat_offset_5
@@ -58,7 +60,7 @@ def mesh250m_to_polygon(mesh_code: str) -> Tuple[float, float, float, float, Lis
         [sw_lon, sw_lat + height],
         [sw_lon, sw_lat],
     ]
-    
+
     return sw_lat, sw_lon, height, width, polygon
 
 
@@ -97,11 +99,11 @@ def gradient_color(t: float) -> str:
     返り値は (r, g, b) のタプル。
     """
     stops = [
-        (0.00, (0, 0, 255)),     # blue
-        (0.25, (0, 255, 255)),   # cyan
-        (0.50, (0, 255, 0)),     # green
-        (0.75, (255, 255, 0)),   # yellow
-        (1.00, (255, 0, 0)),     # red
+        (0.00, (0, 0, 255)),  # blue
+        (0.25, (0, 255, 255)),  # cyan
+        (0.50, (0, 255, 0)),  # green
+        (0.75, (255, 255, 0)),  # yellow
+        (1.00, (255, 0, 0)),  # red
     ]
     t = max(0.0, min(1.0, t))
     for i in range(len(stops) - 1):
@@ -165,7 +167,10 @@ def write_kml(meshes: List[Dict], out_path: Path) -> None:
 
 def main() -> None:
     if len(sys.argv) != 5:
-        print("Usage: python generate_mesh.py <region.json> <input.csv> <output.json> <output.kml>", file=sys.stderr)
+        print(
+            "Usage: python generate_mesh.py <region.json> <input.csv> <output.json> <output.kml>",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     region_path = Path(sys.argv[1])

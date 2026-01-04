@@ -116,7 +116,7 @@ def main():
 
         mesh_list = read_mesh_file(input_mesh_file)
         print(f"Loaded {len(mesh_list)} meshes")
-        
+
         points = filter_points_in_mesh(points, mesh_list)
 
         # JSON出力
