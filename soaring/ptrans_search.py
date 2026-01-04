@@ -6,8 +6,21 @@ import polyline
 import concurrent.futures
 import threading
 import os
+import time
 
 MAX_WALK_DISTANCE_M = 1000  # 徒歩の最大距離[m]
+# CURRENT_DATE = datetime.datetime.now().strftime("%m-%d-%Y")
+CURRENT_DATE = "2026-01-05"
+
+# スレッドローカルストレージでセッションを管理
+_thread_local = threading.local()
+
+
+def get_session():
+    """スレッド単位でセッションを取得（キープアライブ対応）"""
+    if not hasattr(_thread_local, "session"):
+        _thread_local.session = requests.Session()
+    return _thread_local.session
 
 
 def load_spots(json_path):
@@ -42,25 +55,28 @@ def merge_geometry(geometry_list: list[str]) -> str:
     return merged_geom
 
 
-def get_travel_time(from_spot, to_stop, max_walk_distance_m: int):
+def get_travel_time(
+    from_spot, to_stop, max_walk_distance_m: int, start_time: str = "10:00:00"
+):
     """スポットからバス停までの所要時間と経路形状を取得"""
     base_url = "http://localhost:8080/otp/routers/default/plan"
 
-    # 現在の日付を取得してMM-DD-YYYYフォーマットに変換
-    current_date = datetime.datetime.now().strftime("%m-%d-%Y")
+    is_comstop_to_point = from_spot["id"].startswith("comstop")
+    mode = "WALK" if is_comstop_to_point else "WALK,TRANSIT"
 
     params = {
         "fromPlace": f"{from_spot['lat']},{from_spot['lon']}",
         "toPlace": f"{to_stop['lat']},{to_stop['lon']}",
-        "mode": "WALK,TRANSIT",
-        "date": current_date,
-        "time": "10:00:00",
+        "mode": mode,
+        "date": CURRENT_DATE,
+        "time": start_time,
         "maxWalkDistance": max_walk_distance_m,
         "numItineraries": 1,
     }
 
     try:
-        response = requests.get(base_url, params=params, timeout=10)
+        session = get_session()
+        response = session.get(base_url, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
 
@@ -69,9 +85,6 @@ def get_travel_time(from_spot, to_stop, max_walk_distance_m: int):
             itinerary = data["plan"]["itineraries"][0]
             duration_m = itinerary["duration"] / 60  # 秒から分に変換
             walk_distance_m = itinerary["walkDistance"]
-            # geometry = itinerary["legs"][0]["legGeometry"][
-            #     "points"
-            # ]  # Google Polyline形式
             geometry_list = []
 
             # 区間情報の取得
@@ -106,9 +119,9 @@ def get_travel_time(from_spot, to_stop, max_walk_distance_m: int):
 
 
 def _process_pair(args):
-    spot, stop, max_walk_distance_m = args
+    spot, stop, max_walk_distance_m, start_time = args
     duration_m, walk_distance_m, geometry, sections = get_travel_time(
-        spot, stop, max_walk_distance_m
+        spot, stop, max_walk_distance_m, start_time
     )
     if duration_m is None:
         return None
@@ -117,12 +130,18 @@ def _process_pair(args):
         "to": stop["id"],
         "duration_m": duration_m,
         "walk_distance_m": walk_distance_m,
+        "start_time": start_time,
         "geometry": geometry,
         "sections": sections,
     }
 
 
-def execute(elem_list_1: list, elem_list_2: list, max_walk_distance_m: int):
+def execute(
+    elem_list_1: list,
+    elem_list_2: list,
+    max_walk_distance_m: int,
+    start_time_list: list,
+):
     """
     与えられたリストの掛け合わせの数だけ公共交通探索を行う。
     並列実行でスループットを向上させる。
@@ -133,9 +152,10 @@ def execute(elem_list_1: list, elem_list_2: list, max_walk_distance_m: int):
         return routes
 
     pairs_iter = (
-        (spot, stop, max_walk_distance_m)
+        (spot, stop, max_walk_distance_m, start_time)
         for spot in elem_list_1
         for stop in elem_list_2
+        for start_time in start_time_list
     )
 
     processed = 0
@@ -180,13 +200,15 @@ def main(
     stops = load_stops(input_stops_path)
     refpoints = load_refpoints(input_refpoint_path)
 
-    spots_to_stops = execute(spots, stops, MAX_WALK_DISTANCE_M)
+    spots_to_stops = execute(spots, stops, MAX_WALK_DISTANCE_M, ["10:00am", "3:25pm"])
     write_json(output_dir, "spot_to_stops", spots_to_stops)
 
-    spots_to_refpoints = execute(spots, refpoints, MAX_WALK_DISTANCE_M * 100)
+    spots_to_refpoints = execute(
+        spots, refpoints, MAX_WALK_DISTANCE_M * 100, ["10:00am", "3:25pm"]
+    )
     write_json(output_dir, "spot_to_refpoints", spots_to_refpoints)
 
-    stops_to_refpoints = execute(stops, refpoints, MAX_WALK_DISTANCE_M)
+    stops_to_refpoints = execute(stops, refpoints, MAX_WALK_DISTANCE_M, ["10:00am"])
     write_json(output_dir, "stop_to_refpoints", stops_to_refpoints)
 
 
@@ -195,4 +217,14 @@ if __name__ == "__main__":
     input_stops_path = sys.argv[2]
     input_refpoint_path = sys.argv[3]
     output_dir = sys.argv[4]
+
+    start_time = time.time()
     main(input_spots_path, input_stops_path, input_refpoint_path, output_dir)
+    end_time = time.time()
+
+    elapsed_time = end_time - start_time
+    hours = int(elapsed_time // 3600)
+    minutes = int((elapsed_time % 3600) // 60)
+    seconds = int(elapsed_time % 60)
+
+    print(f"\nExecution time: {hours}h {minutes}m {seconds}s")

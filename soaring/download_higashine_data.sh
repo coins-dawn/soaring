@@ -33,3 +33,4 @@ rm $DSTDIR/tohoku-latest.osm.pbf
 ### GTFS ###
 # 東根市営バス
 curl -L https://api.gtfs-data.jp/v2/organizations/higashinecity/feeds/HigashineCity/files/feed.zip?rid=current -o $DSTDIR/higashine_city-gtfs.zip
+unzip -o "$DSTDIR/higashine_city-gtfs.zip" -d "$DSTDIR/gtfs/higashine_city"
