@@ -5,7 +5,18 @@ import datetime
 import csv
 import pickle
 import time
+import threading
 from shapely.geometry import shape, Polygon, MultiPolygon
+
+# スレッドローカルストレージでセッションを管理
+_thread_local = threading.local()
+
+
+def get_session():
+    """スレッド単位でセッションを取得（キープアライブ対応）"""
+    if not hasattr(_thread_local, "session"):
+        _thread_local.session = requests.Session()
+    return _thread_local.session
 
 
 class Mesh:
@@ -88,7 +99,8 @@ def request_to_otp(spot: dict, time_limits: list, walk_distance_limit: int) -> d
     url = f"{host}{path}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
     for time_limit in time_limits:
         url += f"&cutoffSec={time_limit}"
-    response = requests.get(url)
+    session = get_session()
+    response = session.get(url)
     return response.json()
 
 

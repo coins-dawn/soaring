@@ -10,6 +10,16 @@ import time
 
 MAX_WALK_DISTANCE_M = 1000  # 徒歩の最大距離[m]
 
+# スレッドローカルストレージでセッションを管理
+_thread_local = threading.local()
+
+
+def get_session():
+    """スレッド単位でセッションを取得（キープアライブ対応）"""
+    if not hasattr(_thread_local, "session"):
+        _thread_local.session = requests.Session()
+    return _thread_local.session
+
 
 def load_spots(json_path):
     """スポットデータを読み込む"""
@@ -61,7 +71,8 @@ def get_travel_time(from_spot, to_stop, max_walk_distance_m: int):
     }
 
     try:
-        response = requests.get(base_url, params=params, timeout=10)
+        session = get_session()
+        response = session.get(base_url, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
 
