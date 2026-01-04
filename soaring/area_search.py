@@ -97,7 +97,7 @@ def request_to_otp(
     # それ以外は徒歩＋公共交通機関
     spot_id = spot["id"]
     is_comstop = spot_id.startswith("comstop")
-    mode = "WALK" if is_comstop else "WALK,TRANSIT"
+    mode = "WALK,RAIL" if is_comstop else "WALK,TRANSIT"
 
     params = {
         "fromPlace": f"{lat},{lon}",
