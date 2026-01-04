@@ -9,7 +9,7 @@ import threading
 from shapely.geometry import shape, Polygon, MultiPolygon
 
 # CURRENT_DATE = datetime.datetime.now().strftime("%m-%d-%Y")
-CURRENT_DATE  = "2026-01-05"
+CURRENT_DATE = "2026-01-05"
 
 # スレッドローカルストレージでセッションを管理
 _thread_local = threading.local()
@@ -84,13 +84,15 @@ def find_intersecting_meshes(
     return mesh_codes
 
 
-def request_to_otp(spot: dict, time_limits: list, walk_distance_limit: int, start_time: str) -> dict:
+def request_to_otp(
+    spot: dict, time_limits: list, walk_distance_limit: int, start_time: str
+) -> dict:
     """Open Trip Plannerで到達圏探索を実行する"""
     lat = spot["lat"]
     lon = spot["lon"]
     host = "http://localhost:8080"
     path = "/otp/routers/default/isochrone"
-    
+
     # バス停発の場合は徒歩限定
     # それ以外は徒歩＋公共交通機関
     spot_id = spot["id"]
@@ -166,13 +168,13 @@ def exec_single_spot(
     spot: dict, all_mesh_list: list[Mesh]
 ) -> tuple[list[Geojson], set[str]]:
     # 時間制限リストの作成
-    time_trial_num = 19 # 5分刻みで90分まで
+    time_trial_num = 19  # 5分刻みで90分まで
     time_limits = [i * 60 * 5 for i in range(1, time_trial_num)]
 
     # 徒歩距離リストの作成
     walk_distance_trial_num = 21
     walk_distance_limits = [i * 50 for i in range(1, walk_distance_trial_num)]
-    
+
     # 出発時刻リストの生成
     spot_id = spot["id"]
     is_comstop = spot_id.startswith("comstop")
@@ -182,7 +184,9 @@ def exec_single_spot(
     for walk_distance_limit in walk_distance_limits:
         for start_time in start_time_list:
             # Open Trip Plannerに問い合わせ
-            response_json = request_to_otp(spot, time_limits, walk_distance_limit, start_time)
+            response_json = request_to_otp(
+                spot, time_limits, walk_distance_limit, start_time
+            )
             time_to_geometry_dict = {}
             for i in range(time_trial_num - 1):
                 # print(f"------{walk_distance_limit}--------")
@@ -196,7 +200,11 @@ def exec_single_spot(
 
             # GeoJSONリストを計算
             geojson_list = calc_geojson_list(
-                time_limits, time_to_geometry_dict, spot["id"], walk_distance_limit, start_time
+                time_limits,
+                time_to_geometry_dict,
+                spot["id"],
+                walk_distance_limit,
+                start_time,
             )
             if not geojson_list:
                 continue
@@ -210,17 +218,17 @@ def convert_time_for_filename(start_time: str) -> str:
     """時刻をファイル名用の形式に変換（例: 10:00am -> 1000, 3:25pm -> 1525）"""
     is_pm = start_time.endswith("pm")
     time_part = start_time[:-2]  # "am"または"pm"を削除
-    
+
     # 時間と分を分割
     hours_str, minutes = time_part.split(":")
     hours = int(hours_str)
-    
+
     # pmの場合は時間に12を足す（ただし12pmは12時のまま）
     if is_pm and hours != 12:
         hours += 12
     elif not is_pm and hours == 12:  # 12amは00時
         hours = 0
-    
+
     return f"{hours:02d}{minutes}"
 
 
@@ -240,9 +248,7 @@ def write_geojsons(
         walk_distance_m = geojson.walk_distance_m
         start_time_formatted = convert_time_for_filename(geojson.start_time)
         id = geojson.id
-        output_path = (
-            f"{output_geojson_dir_path}/{id}_{time_limit_min}_{walk_distance_m}_{start_time_formatted}.bin"
-        )
+        output_path = f"{output_geojson_dir_path}/{id}_{time_limit_min}_{walk_distance_m}_{start_time_formatted}.bin"
         output_txt_path = f"{output_geojson_txt_dir_path}/{id}_{time_limit_min}_{walk_distance_m}_{start_time_formatted}.json"
         with open(output_path, "wb") as f:
             pickle.dump(feature, f)
