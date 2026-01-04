@@ -17,7 +17,7 @@ convert-all:
 	echo "=================================================="; \
 	echo "Starting conversion at $$(date '+%Y-%m-%d %H:%M:%S')"; \
 	echo "=================================================="; \
-	$(MAKE) generate-mesh select-spots car-search ptrans-search area-search archive; \
+	$(MAKE) visualize-gtfs generate-mesh select-spots car-search ptrans-search area-search archive; \
 	end_time=$$(date +%s); \
 	elapsed=$$(( end_time - start_time )); \
 	hours=$$(( elapsed / 3600 )); \
@@ -28,16 +28,15 @@ convert-all:
 	echo "Execution time: $${hours}h $${minutes}m $${seconds}s"; \
 	echo "=================================================="
 
-# # メッシュにフィルタをかける
-# .PHONY: filter-mesh
-# filter-mesh:
-# 	mkdir -p work/output/archive/
-# 	cp static/population-mesh.json work/input
-# 	cp static/target_region.json work/input
-# 	python soaring/filter_mesh.py \
-# 		work/input/population_mesh_toyama.json \
-# 		work/input/target_region.json \
-# 		work/output/archive/mesh.json
+# GTFSの可視化データを作成
+# NOTE: 東根市以外に対応する場合はパスを修正する
+.PHONY: visualize-gtfs
+visualize-gtfs:
+	mkdir -p work/output/archive/
+	python soaring/visualize_gtfs.py \
+		work/input/gtfs/higashine_city \
+		work/output/archive/ptrans.json \
+		work/output/ptrans.kml
 
 # e-statから取得した人口メッシュからメッシュ情報を生成
 .PHONY: generate-mesh
