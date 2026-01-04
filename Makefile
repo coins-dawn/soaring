@@ -12,7 +12,21 @@ otp:
 
 # コンバートを通しで実行する
 .PHONY: convert-all
-convert-all: generate-mesh select-spots car-search ptrans-search area-search archive
+convert-all:
+	@start_time=$$(date +%s); \
+	echo "=================================================="; \
+	echo "Starting conversion at $$(date '+%Y-%m-%d %H:%M:%S')"; \
+	echo "=================================================="; \
+	$(MAKE) generate-mesh select-spots car-search ptrans-search area-search archive; \
+	end_time=$$(date +%s); \
+	elapsed=$$(( end_time - start_time )); \
+	hours=$$(( elapsed / 3600 )); \
+	minutes=$$(( (elapsed % 3600) / 60 )); \
+	seconds=$$(( elapsed % 60 )); \
+	echo "=================================================="; \
+	echo "Completed at $$(date '+%Y-%m-%d %H:%M:%S')"; \
+	echo "Execution time: $${hours}h $${minutes}m $${seconds}s"; \
+	echo "=================================================="
 
 # # メッシュにフィルタをかける
 # .PHONY: filter-mesh
