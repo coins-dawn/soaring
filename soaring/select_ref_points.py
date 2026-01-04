@@ -114,9 +114,10 @@ def main():
         points = generate_grid_points(sw_lon, sw_lat, ne_lon, ne_lat)
         print(f"Generated {len(points)} grid points")
 
-        # メッシュファイルの読み込み（引数として渡されるが使用しない）
         mesh_list = read_mesh_file(input_mesh_file)
         print(f"Loaded {len(mesh_list)} meshes")
+        
+        points = filter_points_in_mesh(points, mesh_list)
 
         # JSON出力
         write_json(output_path, points)
